@@ -1,0 +1,543 @@
+<!doctype html>
+<!--
+  PROTOTYPE — THROWAWAY. Do not ship.
+  threadline issue #8: three radically different information architectures for the
+  pipeline web UI, switchable via ?variant=A|B|C and the floating bottom bar (or ← / → keys).
+
+    A — Sidebar drill-down : dashboard → effort page → full-page session (Linear-style)
+    B — Pipeline-first board: six stage columns w/ gates, effort drawer, session overlay
+    C — IDE split          : efforts tree | pipeline rail + stage detail | docked session chat
+
+  Theme toggle (dark/light) in the switcher bar. All data is mocked, all state in memory.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>threadline — UI prototype</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #1c2129; --border: #2d333b;
+    --fg: #e6edf3; --fg2: #9198a1; --fg3: #6e7681;
+    --accent: #4f8cff; --accent-dim: #1f3a63;
+    --ok: #3fb950; --warn: #d29922; --danger: #f85149; --purple: #a371f7;
+    --lock: #6e7681;
+    --radius: 8px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  [data-theme="light"] {
+    --bg: #ffffff; --bg2: #f6f8fa; --bg3: #eef1f4; --border: #d1d9e0;
+    --fg: #1f2328; --fg2: #59636e; --fg3: #818b98;
+    --accent: #0969da; --accent-dim: #ddeafd;
+    --ok: #1a7f37; --warn: #9a6700; --danger: #d1242f; --purple: #8250df;
+    --lock: #818b98;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); }
+  #app { height: 100%; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+  h1,h2,h3 { font-weight: 600; }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .dim { color: var(--fg2); } .dimmer { color: var(--fg3); }
+  .pill { display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border-radius:99px; font-size:11px; font-weight:600; border:1px solid var(--border); color:var(--fg2); white-space:nowrap; }
+  .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+  .pill.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+  .pill.accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  .pill.purple { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 40%, transparent); }
+  .dot { width:8px; height:8px; border-radius:99px; display:inline-block; flex:none; }
+  .dot.running { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); animation: pulse 1.6s infinite; }
+  .dot.approval { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 25%, transparent); animation: pulse 1.1s infinite; }
+  .dot.human { background: var(--purple); }
+  .dot.done { background: var(--fg3); }
+  @keyframes pulse { 50% { opacity:.55; } }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); }
+  .btn { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); font-size: 13px; font-weight: 500; }
+  .btn:hover { border-color: var(--fg3); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .btn.danger-outline { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, transparent); background: none; }
+  .btn.sm { padding: 2px 9px; font-size: 12px; }
+
+  /* ---------- shared: stage stepper ---------- */
+  .stepper { display:flex; align-items:center; overflow-x:auto; padding: 4px 0; }
+  .step { display:flex; flex-direction:column; align-items:center; gap:6px; min-width:96px; text-align:center; position:relative; }
+  .step .bubble { width:28px; height:28px; border-radius:99px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; border:2px solid var(--border); background:var(--bg2); color:var(--fg3); }
+  .step.done .bubble { background: var(--ok); border-color: var(--ok); color:#fff; }
+  .step.current .bubble { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .step.locked .bubble { color: var(--lock); }
+  .step .slabel { font-size: 11px; font-weight:600; color: var(--fg2); }
+  .step.current .slabel { color: var(--fg); }
+  .gatelink { flex:none; width:34px; height:2px; background: var(--border); position:relative; top:-11px; }
+  .gatelink.open { background: var(--ok); }
+  .gatelink .gate { position:absolute; top:-8px; left:50%; transform:translateX(-50%); font-size:11px; }
+
+  /* ---------- shared: chat ---------- */
+  .chat { display:flex; flex-direction:column; height:100%; min-height:0; }
+  .chat-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); flex:none; flex-wrap:wrap; }
+  .chat-scroll { flex:1; overflow-y:auto; padding: 14px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width: 78%; padding: 8px 12px; border-radius: 10px; font-size: 13px; white-space: pre-wrap; }
+  .msg.user { align-self:flex-end; background: var(--accent-dim); border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .msg.agent { align-self:flex-start; background: var(--bg2); border:1px solid var(--border); }
+  .msg.tool { align-self:flex-start; font-family: var(--mono); font-size:12px; background: var(--bg3); border:1px dashed var(--border); color: var(--fg2); }
+  .approval-card { align-self:stretch; border:1px solid color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 8%, var(--bg2)); border-radius:10px; padding:12px 14px; }
+  .approval-card .cmd { font-family: var(--mono); font-size:12px; background: var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin:8px 0; }
+  .chat-input { flex:none; border-top:1px solid var(--border); padding:10px 14px; display:flex; gap:8px; }
+  .chat-input input { flex:1; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--fg); font:inherit; }
+  .chat-input input:focus { outline:none; border-color: var(--accent); }
+
+  /* ---------- Variant A ---------- */
+  .va { display:grid; grid-template-columns: 230px 1fr; height:100%; }
+  .va-side { border-right:1px solid var(--border); background: var(--bg2); padding: 14px 10px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
+  .va-side .wsname { font-weight:700; padding: 4px 10px 12px; font-size:15px; display:flex; gap:8px; align-items:center; }
+  .va-side .navsec { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--fg3); padding: 12px 10px 4px; }
+  .va-side .navitem { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; text-align:left; width:100%; font-size:13px; color:var(--fg2); }
+  .va-side .navitem:hover { background: var(--bg3); }
+  .va-side .navitem.active { background: var(--bg3); color: var(--fg); font-weight:600; }
+  .va-main { overflow-y:auto; min-height:0; display:flex; flex-direction:column; }
+  .va-crumbs { padding: 14px 24px 0; font-size:13px; color:var(--fg3); flex:none; }
+  .va-crumbs button { color: var(--accent); }
+  .va-body { padding: 16px 24px 90px; flex:1; min-height:0; display:flex; flex-direction:column; }
+  .va-effort-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:14px; margin-top:14px; }
+  .va-effort-card { padding:16px; cursor:pointer; transition: border-color .12s; }
+  .va-effort-card:hover { border-color: var(--accent); }
+  .va-session-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border); cursor:pointer; }
+  .va-session-row:hover { background: var(--bg3); }
+  .va-session-row:last-child { border-bottom:none; }
+  .va-chatwrap { flex:1; min-height:420px; display:flex; flex-direction:column; }
+
+  /* ---------- Variant B ---------- */
+  .vb { height:100%; display:flex; flex-direction:column; }
+  .vb-top { flex:none; padding: 14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; }
+  .vb-board { flex:1; display:flex; overflow-x:auto; padding: 16px 16px 90px; gap:0; min-height:0; }
+  .vb-col { flex: 1 0 210px; max-width: 280px; display:flex; flex-direction:column; min-height:0; }
+  .vb-col-head { padding: 4px 10px 10px; display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; }
+  .vb-col-cards { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding: 4px 8px; background: var(--bg2); border:1px solid var(--border); border-radius: 10px; min-height: 120px; }
+  .vb-gate { flex:none; width:36px; display:flex; align-items:center; justify-content:center; position:relative; }
+  .vb-gate .bar { width:2px; height:70%; background:var(--border); border-radius:2px; }
+  .vb-gate .icon { position:absolute; top:50%; transform:translateY(-50%); background:var(--bg); border:1px solid var(--border); border-radius:99px; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .vb-card { background: var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:pointer; }
+  .vb-card:hover { border-color: var(--accent); }
+  .vb-drawer { position:fixed; top:0; right:0; bottom:0; width:min(480px, 92vw); background:var(--bg2); border-left:1px solid var(--border); box-shadow:-12px 0 40px rgba(0,0,0,.35); z-index:40; display:flex; flex-direction:column; }
+  .vb-overlay-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:50; display:flex; align-items:center; justify-content:center; padding: 4vh 4vw; }
+  .vb-session-modal { width:min(860px,100%); height:min(640px,100%); background:var(--bg); border:1px solid var(--border); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
+
+  /* ---------- Variant C ---------- */
+  .vc { display:grid; grid-template-columns: 250px minmax(340px,1fr) minmax(360px, 44%); height:100%; }
+  .vc-tree { border-right:1px solid var(--border); background:var(--bg2); overflow-y:auto; padding:12px 8px 90px; }
+  .vc-tree .titem { display:flex; align-items:center; gap:7px; width:100%; text-align:left; padding:5px 8px; border-radius:6px; font-size:13px; color:var(--fg2); }
+  .vc-tree .titem:hover { background:var(--bg3); }
+  .vc-tree .titem.active { background:var(--bg3); color:var(--fg); font-weight:600; }
+  .vc-tree .indent1 { padding-left: 22px; } .vc-tree .indent2 { padding-left: 38px; font-size:12px; }
+  .vc-mid { display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--border); overflow-y:auto; padding-bottom:90px; }
+  .vc-rail { flex:none; padding: 14px 18px 8px; }
+  .vc-stage-detail { padding: 8px 18px 20px; }
+  .vc-right { display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .vc-tabs { flex:none; display:flex; border-bottom:1px solid var(--border); overflow-x:auto; background:var(--bg2); }
+  .vc-tab { padding:9px 14px; font-size:12.5px; display:flex; gap:7px; align-items:center; color:var(--fg2); border-right:1px solid var(--border); white-space:nowrap; }
+  .vc-tab.active { background:var(--bg); color:var(--fg); font-weight:600; box-shadow: inset 0 -2px 0 var(--accent); }
+  .vrail { display:flex; flex-direction:column; gap:0; }
+  .vrail .vstage { display:flex; gap:12px; align-items:flex-start; padding:7px 0; cursor:pointer; border-radius:8px; }
+  .vrail .vstage:hover .vslabel { color: var(--fg); }
+  .vrail .vbubble { width:24px; height:24px; flex:none; border-radius:99px; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--fg3); background:var(--bg2); }
+  .vrail .vstage.done .vbubble { background:var(--ok); border-color:var(--ok); color:#fff; }
+  .vrail .vstage.current .vbubble { border-color:var(--accent); color:var(--accent); }
+  .vrail .vslabel { font-size:13px; font-weight:600; color:var(--fg2); padding-top:3px; }
+  .vrail .vstage.selected { background: var(--bg3); margin: 0 -8px; padding-left:8px; padding-right:8px; }
+
+  /* ---------- switcher ---------- */
+  #switcher { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:100;
+    display:flex; align-items:center; gap:4px; background:#14171c; color:#eee; border:1px solid #3a4048;
+    border-radius:99px; padding:6px 10px; box-shadow: 0 8px 30px rgba(0,0,0,.5); font-size:13px; }
+  [data-theme="light"] #switcher { background:#1f2328; }
+  #switcher .vname { min-width: 230px; text-align:center; font-weight:600; }
+  #switcher .vname small { display:block; font-weight:400; color:#9aa1ab; font-size:11px; }
+  #switcher button { padding:4px 10px; border-radius:99px; color:#eee; }
+  #switcher button:hover { background:#2b3138; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="switcher"></div>
+
+<script>
+/* =============================== mock data =============================== */
+const STAGES = [
+  { key:'setup',      label:'Setup',       icon:'⚙︎' },
+  { key:'planning',   label:'Planning',    icon:'🧭' },
+  { key:'to-spec',    label:'To-Spec',     icon:'📄' },
+  { key:'to-tickets', label:'To-Tickets',  icon:'🎟' },
+  { key:'implement',  label:'Implement',   icon:'⌨︎' },
+  { key:'code-review',label:'Code Review', icon:'🔍' },
+];
+
+const WS = { name:'acme-workspace', repos:['acme/api','acme/web','acme/infra'] };
+
+const SESSIONS = {
+  's1': { id:'s1', title:'implement · billing-plans', repo:'acme/api', effort:'e1', kind:'implement',
+    status:'running', worktree:'wt/billing-plans', cost:{usd:1.84, in:412_000, out:38_500},
+    transcript:[
+      {role:'user', text:'Implement ticket #212 — plan entitlements table + migration.'},
+      {role:'agent', text:'Reading the spec section on entitlements… The spec pins plan_id as a FK to plans and requires a unique (account_id, feature) constraint. I\'ll write the migration first.'},
+      {role:'tool', text:'$ Read src/db/schema.ts'},
+      {role:'tool', text:'$ Write migrations/0043_entitlements.sql'},
+      {role:'agent', text:'Migration written. Now wiring the repository layer and running the test suite.'},
+      {role:'tool', text:'$ Bash pnpm vitest run src/billing — 47 passed'},
+      {role:'agent', text:'All green. Moving to the API handler for GET /v2/entitlements.'},
+    ]},
+  's2': { id:'s2', title:'implement · pricing-page', repo:'acme/web', effort:'e1', kind:'implement',
+    status:'needs-approval', worktree:'wt/pricing-page', cost:{usd:0.92, in:203_000, out:17_200},
+    pendingApproval:{ tool:'Bash', cmd:'pnpm playwright test pricing.spec.ts --headed', reason:'Wants to run browser tests to verify the new pricing grid renders per spec.' },
+    transcript:[
+      {role:'user', text:'Implement ticket #213 — new pricing grid on /pricing.'},
+      {role:'agent', text:'Pricing grid built with the three tiers from the spec. I want to verify it end-to-end with Playwright before marking this done.'},
+      {role:'approval'},
+    ]},
+  's3': { id:'s3', title:'wayfinder · grilling', repo:'acme/api', effort:'e2', kind:'planning',
+    status:'waiting-human', cost:{usd:0.31, in:88_000, out:9_100},
+    transcript:[
+      {role:'agent', text:'Next decision on the map: should invited teammates land in a shared onboarding checklist, or each get their own? One question at a time — who owns completion state when two admins onboard the same org?'},
+      {role:'user', text:'Hmm, good question. Let me think about how orgs actually use this…'},
+      {role:'agent', text:'Take your time. For reference, the Research: activation funnel ticket found 72% of orgs have a single admin during week 1.'},
+    ]},
+  's4': { id:'s4', title:'code-review · audit-log', repo:'acme/api', effort:'e3', kind:'review',
+    status:'running', cost:{usd:0.58, in:156_000, out:12_400},
+    transcript:[
+      {role:'user', text:'Review PR #88 against the spec — Standards + Spec axes.'},
+      {role:'agent', text:'Running both review passes in parallel sub-agents…'},
+      {role:'tool', text:'$ Bash gh pr diff 88'},
+      {role:'agent', text:'Standards pass: 2 findings (missing index on created_at, error swallowed in exporter). Spec pass in progress.'},
+    ]},
+};
+
+const EFFORTS = [
+  { id:'e1', name:'Billing v2', homeRepo:'acme/api', repos:['acme/api','acme/web'], stage:4,
+    gates:[true,true,true,true], sessions:['s1','s2'],
+    tickets:{done:4, total:6}, spec:'docs/specs/billing-v2.md', map:'#31',
+    stageNote:'2 implement sessions running in parallel worktrees. Gate to Code Review locked: 2 tickets still open.' },
+  { id:'e2', name:'Onboarding revamp', homeRepo:'acme/web', repos:['acme/web'], stage:1,
+    gates:[true], sessions:['s3'],
+    tickets:{done:0, total:0}, map:'#54',
+    stageNote:'Wayfinder map has 3 open decisions. Grilling session waiting on you.' },
+  { id:'e3', name:'Audit log export', homeRepo:'acme/api', repos:['acme/api','acme/infra'], stage:5,
+    gates:[true,true,true,true,true], sessions:['s4'],
+    tickets:{done:5, total:5}, spec:'docs/specs/audit-log.md', map:'#12',
+    stageNote:'Review session running on PR #88. Merge unlocks effort completion.' },
+  { id:'e4', name:'Notifications digest', homeRepo:'acme/api', repos:['acme/api'], stage:0,
+    gates:[], sessions:[],
+    tickets:{done:0, total:0},
+    stageNote:'Repo docs not generated yet — run setup to unlock Planning.' },
+];
+
+const STATUS_META = {
+  'running':        { dot:'running',  label:'running' },
+  'needs-approval': { dot:'approval', label:'needs approval' },
+  'waiting-human':  { dot:'human',    label:'waiting on you' },
+  'done':           { dot:'done',     label:'done' },
+};
+
+/* =============================== state =============================== */
+const VARIANTS = [
+  { key:'A', name:'Sidebar drill-down', desc:'dashboard → effort → session' },
+  { key:'B', name:'Pipeline-first board', desc:'stages as columns, gates between' },
+  { key:'C', name:'IDE split', desc:'tree | pipeline | docked chat' },
+];
+
+const url = new URL(location.href);
+let state = {
+  variant: url.searchParams.get('variant') || 'A',
+  theme: url.searchParams.get('theme') || 'dark',
+  nav: { effortId:null, sessionId:null },        // A: drill-down position
+  b: { drawerEffort:null, modalSession:null },   // B
+  c: { effortId:'e1', stageIdx:null, sessionId:'s1' }, // C
+};
+
+function setVariant(v){ state.variant=v; syncUrl(); render(); }
+function cycle(dir){
+  const i = VARIANTS.findIndex(x=>x.key===state.variant);
+  setVariant(VARIANTS[(i+dir+VARIANTS.length)%VARIANTS.length].key);
+}
+function toggleTheme(){ state.theme = state.theme==='dark'?'light':'dark'; syncUrl(); render(); }
+function syncUrl(){
+  const u = new URL(location.href);
+  u.searchParams.set('variant', state.variant);
+  u.searchParams.set('theme', state.theme);
+  history.replaceState(null,'',u);
+}
+function go(patch){ Object.assign(state.nav, patch); render(); }
+
+function approve(sessionId, allow){
+  const s = SESSIONS[sessionId];
+  s.transcript = s.transcript.filter(m=>m.role!=='approval');
+  if (allow){
+    s.transcript.push({role:'tool', text:'$ '+s.pendingApproval.tool+' '+s.pendingApproval.cmd});
+    s.transcript.push({role:'agent', text:'12 passed, 0 failed. Pricing grid matches the spec — marking ticket #213 ready for review.'});
+    s.status='running';
+  } else {
+    s.transcript.push({role:'agent', text:'Understood — skipping the headed browser run. I\'ll rely on the component tests instead.'});
+    s.status='running';
+  }
+  s.pendingApproval=null;
+  render();
+}
+
+/* =============================== shared partials =============================== */
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const fmtTok = n => n>=1000 ? Math.round(n/1000)+'k' : n;
+const costBadge = c => `<span class="pill mono" title="tokens in/out">$${c.usd.toFixed(2)} · ${fmtTok(c.in)}▸${fmtTok(c.out)}</span>`;
+const statusPill = st => { const m=STATUS_META[st]; return `<span class="pill ${st==='needs-approval'?'warn':st==='running'?'ok':st==='waiting-human'?'purple':''}"><span class="dot ${m.dot}"></span>${m.label}</span>`; };
+const repoChips = repos => repos.map(r=>`<span class="pill mono">${r}</span>`).join(' ');
+
+function stepper(e){
+  let html = '<div class="stepper">';
+  STAGES.forEach((s,i)=>{
+    if (i>0){
+      const open = i<=e.stage;
+      html += `<div class="gatelink ${open?'open':''}"><span class="gate">${open?'🟢':'🔒'}</span></div>`;
+    }
+    const cls = i<e.stage?'done':i===e.stage?'current':'locked';
+    html += `<div class="step ${cls}"><div class="bubble">${i<e.stage?'✓':i+1}</div><div class="slabel">${s.label}</div></div>`;
+  });
+  return html+'</div>';
+}
+
+function transcriptHtml(s){
+  return s.transcript.map(m=>{
+    if (m.role==='approval') return approvalCard(s);
+    return `<div class="msg ${m.role}">${esc(m.text)}</div>`;
+  }).join('');
+}
+function approvalCard(s){
+  const a=s.pendingApproval; if(!a) return '';
+  return `<div class="approval-card">
+    <div style="display:flex;gap:8px;align-items:center"><span class="dot approval"></span><b>Permission request — ${a.tool}</b></div>
+    <div class="cmd">${esc(a.cmd)}</div>
+    <div class="dim" style="font-size:12.5px">${esc(a.reason)}</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn ok sm" onclick="approve('${s.id}',true)">Allow</button>
+      <button class="btn danger-outline sm" onclick="approve('${s.id}',false)">Deny</button>
+    </div></div>`;
+}
+function chatView(s, {compactHead=false}={}){
+  return `<div class="chat">
+    <div class="chat-head">
+      ${compactHead?'':`<b>${s.title}</b>`}
+      <span class="pill mono">${s.repo}</span>
+      ${s.worktree?`<span class="pill mono">⎇ ${s.worktree}</span>`:''}
+      ${statusPill(s.status)}
+      <span style="flex:1"></span>
+      ${costBadge(s.cost)}
+    </div>
+    <div class="chat-scroll">${transcriptHtml(s)}</div>
+    <div class="chat-input"><input placeholder="Message the agent… (prototype — not wired)"><button class="btn primary">Send</button></div>
+  </div>`;
+}
+function sessionRow(sid, onclick){
+  const s=SESSIONS[sid], m=STATUS_META[s.status];
+  return `<div class="va-session-row" onclick="${onclick}">
+    <span class="dot ${m.dot}"></span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600">${s.title}</div>
+      <div class="dimmer mono">${s.repo}${s.worktree?' · ⎇ '+s.worktree:''}</div>
+    </div>
+    ${statusPill(s.status)} ${costBadge(s.cost)}
+  </div>`;
+}
+function effortCost(e){
+  const t = e.sessions.reduce((a,sid)=>a+SESSIONS[sid].cost.usd,0);
+  return t?`<span class="pill mono">$${t.toFixed(2)}</span>`:'';
+}
+function attention(e){
+  const n = e.sessions.filter(sid=>['needs-approval','waiting-human'].includes(SESSIONS[sid].status)).length;
+  return n?`<span class="pill warn">⚑ ${n} needs you</span>`:'';
+}
+
+/* =============================== Variant A =============================== */
+function renderA(){
+  const {effortId, sessionId} = state.nav;
+  const side = `<div class="va-side">
+    <div class="wsname">🧵 ${WS.name}</div>
+    <div class="navsec">Efforts</div>
+    ${EFFORTS.map(e=>`<button class="navitem ${effortId===e.id?'active':''}" onclick="go({effortId:'${e.id}',sessionId:null})">
+      <span style="flex:1;text-align:left">${e.name}</span><span class="dimmer" style="font-size:11px">${STAGES[e.stage].label}</span></button>`).join('')}
+    <div class="navsec">Repos</div>
+    ${WS.repos.map(r=>`<button class="navitem"><span class="mono">${r}</span></button>`).join('')}
+    <div class="navsec">Needs you</div>
+    ${Object.values(SESSIONS).filter(s=>['needs-approval','waiting-human'].includes(s.status)).map(s=>
+      `<button class="navitem" onclick="go({effortId:'${s.effort}',sessionId:'${s.id}'})">
+        <span class="dot ${STATUS_META[s.status].dot}"></span><span style="flex:1;text-align:left">${s.title}</span></button>`).join('')}
+  </div>`;
+
+  let crumbs, body;
+  if (sessionId){
+    const s=SESSIONS[sessionId], e=EFFORTS.find(x=>x.id===s.effort);
+    crumbs = `<button onclick="go({effortId:null,sessionId:null})">Dashboard</button> / <button onclick="go({sessionId:null})">${e.name}</button> / <span style="color:var(--fg)">${s.title}</span>`;
+    body = `<div class="card va-chatwrap" style="margin-top:12px">${chatView(s)}</div>`;
+  } else if (effortId){
+    const e=EFFORTS.find(x=>x.id===effortId);
+    crumbs = `<button onclick="go({effortId:null,sessionId:null})">Dashboard</button> / <span style="color:var(--fg)">${e.name}</span>`;
+    body = `
+      <div style="display:flex;align-items:center;gap:12px;margin:10px 0 4px"><h2>${e.name}</h2>${repoChips(e.repos)}${attention(e)}<span style="flex:1"></span>${effortCost(e)}</div>
+      <div class="card" style="padding:18px 20px;margin-top:10px">${stepper(e)}
+        <div style="display:flex;gap:10px;align-items:center;margin-top:14px">
+          <span class="pill accent">Current: ${STAGES[e.stage].label}</span>
+          <span class="dim" style="font-size:13px">${e.stageNote}</span>
+          <span style="flex:1"></span><button class="btn sm">Override gate ▸</button>
+        </div>
+        ${e.spec?`<div class="dimmer mono" style="margin-top:10px">spec: ${e.spec} · map: ${e.map} · tickets ${e.tickets.done}/${e.tickets.total}</div>`:''}
+      </div>
+      <h3 style="margin:20px 0 8px">Sessions</h3>
+      <div class="card">${e.sessions.length? e.sessions.map(sid=>sessionRow(sid,`go({sessionId:'${sid}'})`)).join('') : '<div class="dim" style="padding:16px">No sessions yet — the current stage starts one.</div>'}</div>
+      <div style="margin-top:12px"><button class="btn primary">▶ Start ${STAGES[e.stage].label} session</button></div>`;
+  } else {
+    crumbs = `<span style="color:var(--fg)">Dashboard</span>`;
+    body = `<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px"><h2>Efforts</h2><span class="dim">${EFFORTS.length} across ${WS.repos.length} repos</span></div>
+      <div class="va-effort-grid">
+      ${EFFORTS.map(e=>`<div class="card va-effort-card" onclick="go({effortId:'${e.id}'})">
+        <div style="display:flex;align-items:center;gap:10px"><b style="font-size:15px">${e.name}</b><span style="flex:1"></span>${attention(e)}</div>
+        <div style="margin:8px 0 2px">${repoChips(e.repos)}</div>
+        <div style="transform:scale(.82);transform-origin:left">${stepper(e)}</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+          <span class="pill accent">${STAGES[e.stage].label}</span>
+          <span class="dimmer" style="font-size:12px">${e.sessions.length} session${e.sessions.length===1?'':'s'}</span>
+          <span style="flex:1"></span>${effortCost(e)}</div>
+      </div>`).join('')}</div>`;
+  }
+  return `<div class="va">${side}<div class="va-main"><div class="va-crumbs">${crumbs}</div><div class="va-body">${body}</div></div></div>`;
+}
+
+/* =============================== Variant B =============================== */
+function renderB(){
+  const cols = STAGES.map((st,i)=>{
+    const cards = EFFORTS.filter(e=>e.stage===i).map(e=>`
+      <div class="vb-card" onclick="state.b.drawerEffort='${e.id}';render()">
+        <div style="display:flex;gap:8px;align-items:center"><b>${e.name}</b><span style="flex:1"></span>${attention(e)}</div>
+        <div style="margin-top:6px">${repoChips(e.repos)}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+          ${e.sessions.map(sid=>`<span class="dot ${STATUS_META[SESSIONS[sid].status].dot}" title="${SESSIONS[sid].title}"></span>`).join('')}
+          <span class="dimmer" style="font-size:11px">${e.sessions.length?e.sessions.length+' session'+(e.sessions.length===1?'':'s'):'idle'}</span>
+          <span style="flex:1"></span>${effortCost(e)}</div>
+      </div>`).join('');
+    const col = `<div class="vb-col">
+      <div class="vb-col-head"><span>${st.icon}</span> ${st.label} <span class="dimmer" style="font-weight:400">${EFFORTS.filter(e=>e.stage===i).length||''}</span></div>
+      <div class="vb-col-cards">${cards||'<div class="dimmer" style="padding:10px;font-size:12px;text-align:center">—</div>'}</div>
+    </div>`;
+    const gate = i<STAGES.length-1 ? `<div class="vb-gate"><div class="bar"></div><div class="icon" title="gate: ${st.label} → ${STAGES[i+1].label}">🔒</div></div>` : '';
+    return col+gate;
+  }).join('');
+
+  let drawer='', modal='';
+  if (state.b.drawerEffort){
+    const e=EFFORTS.find(x=>x.id===state.b.drawerEffort);
+    drawer = `<div class="vb-drawer">
+      <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center">
+        <b style="font-size:15px">${e.name}</b><span class="pill accent">${STAGES[e.stage].label}</span><span style="flex:1"></span>
+        <button class="btn sm" onclick="state.b.drawerEffort=null;render()">✕</button></div>
+      <div style="padding:14px 18px;overflow-y:auto;flex:1">
+        <div>${repoChips(e.repos)} ${effortCost(e)}</div>
+        <div style="transform:scale(.8);transform-origin:left;margin-top:10px">${stepper(e)}</div>
+        <p class="dim" style="font-size:13px;margin:6px 0 14px">${e.stageNote}</p>
+        ${e.spec?`<div class="dimmer mono" style="margin-bottom:14px">spec: ${e.spec} · map: ${e.map} · tickets ${e.tickets.done}/${e.tickets.total}</div>`:''}
+        <h3 style="margin-bottom:8px">Sessions</h3>
+        <div class="card">${e.sessions.length? e.sessions.map(sid=>sessionRow(sid,`state.b.modalSession='${sid}';render()`)).join('') : '<div class="dim" style="padding:14px">No sessions yet.</div>'}</div>
+        <div style="margin-top:12px;display:flex;gap:8px"><button class="btn primary">▶ Start ${STAGES[e.stage].label} session</button><button class="btn">Override gate ▸</button></div>
+      </div></div>`;
+  }
+  if (state.b.modalSession){
+    const s=SESSIONS[state.b.modalSession];
+    modal = `<div class="vb-overlay-bg" onclick="if(event.target===this){state.b.modalSession=null;render()}">
+      <div class="vb-session-modal">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <b>${s.title}</b><span style="flex:1"></span><button class="btn sm" onclick="state.b.modalSession=null;render()">✕</button></div>
+        ${chatView(s,{compactHead:true})}
+      </div></div>`;
+  }
+  const needsYou = Object.values(SESSIONS).filter(s=>['needs-approval','waiting-human'].includes(s.status));
+  return `<div class="vb">
+    <div class="vb-top"><b style="font-size:15px">🧵 ${WS.name}</b><span class="dim">pipeline board</span><span style="flex:1"></span>
+      ${needsYou.map(s=>`<button class="pill warn" onclick="state.b.drawerEffort='${s.effort}';state.b.modalSession='${s.id}';render()"><span class="dot ${STATUS_META[s.status].dot}"></span>${s.title}</button>`).join('')}
+    </div>
+    <div class="vb-board">${cols}</div>${drawer}${modal}</div>`;
+}
+
+/* =============================== Variant C =============================== */
+function renderC(){
+  const c = state.c;
+  const eff = EFFORTS.find(x=>x.id===c.effortId) || EFFORTS[0];
+  const tree = `<div class="vc-tree">
+    <div class="titem" style="font-weight:700;color:var(--fg)">🧵 ${WS.name}</div>
+    ${EFFORTS.map(e=>`
+      <button class="titem ${c.effortId===e.id?'active':''}" onclick="state.c.effortId='${e.id}';state.c.stageIdx=null;state.c.sessionId='${e.sessions[0]||''}';render()">
+        <span>${c.effortId===e.id?'▾':'▸'}</span><span style="flex:1;text-align:left">${e.name}</span>${attention(e)}</button>
+      ${c.effortId===e.id ? e.repos.map(r=>`<div class="titem indent1 mono dimmer">${r}</div>`).join('') +
+        e.sessions.map(sid=>{const s=SESSIONS[sid];return `<button class="titem indent2 ${c.sessionId===sid?'active':''}" onclick="state.c.sessionId='${sid}';render()">
+          <span class="dot ${STATUS_META[s.status].dot}"></span><span style="flex:1;text-align:left">${s.title}</span></button>`;}).join('') : ''}`).join('')}
+  </div>`;
+
+  const stageIdx = c.stageIdx ?? eff.stage;
+  const rail = `<div class="vc-rail">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><h2>${eff.name}</h2>${repoChips(eff.repos)}<span style="flex:1"></span>${effortCost(eff)}</div>
+    <div class="vrail">
+    ${STAGES.map((s,i)=>{
+      const cls = (i<eff.stage?'done':i===eff.stage?'current':'') + (i===stageIdx?' selected':'');
+      const gate = i>0 ? (i<=eff.stage?'🟢 ':'🔒 ') : '';
+      return `<div class="vstage ${cls}" onclick="state.c.stageIdx=${i};render()">
+        <div class="vbubble">${i<eff.stage?'✓':i+1}</div>
+        <div style="flex:1"><div class="vslabel">${gate}${s.label}</div>
+        ${i===eff.stage?`<div class="dim" style="font-size:12px">${eff.stageNote}</div>`:''}</div></div>`;
+    }).join('')}</div></div>`;
+
+  const st = STAGES[stageIdx];
+  const locked = stageIdx>eff.stage;
+  const detail = `<div class="vc-stage-detail">
+    <div class="card" style="padding:14px 16px">
+      <div style="display:flex;gap:10px;align-items:center"><b>${st.icon} ${st.label}</b>
+        ${stageIdx<eff.stage?'<span class="pill ok">passed</span>':stageIdx===eff.stage?'<span class="pill accent">current</span>':'<span class="pill">🔒 locked</span>'}
+        <span style="flex:1"></span>${locked?'<button class="btn sm">Override ▸</button>':`<button class="btn primary sm">▶ Start session</button>`}</div>
+      <p class="dim" style="font-size:13px;margin-top:8px">${
+        locked ? `Unlocks when ${STAGES[stageIdx-1].label} exit condition is met.` :
+        stageIdx<eff.stage ? 'Exit condition met — artifacts recorded on the tracker.' : eff.stageNote}</p>
+      ${eff.spec && stageIdx===2?`<div class="dimmer mono" style="margin-top:8px">spec: ${eff.spec}</div>`:''}
+      ${stageIdx===3&&eff.tickets.total?`<div class="dimmer mono" style="margin-top:8px">tickets ${eff.tickets.done}/${eff.tickets.total} closed</div>`:''}
+    </div></div>`;
+
+  const openSessions = Object.values(SESSIONS).filter(s=>s.effort===eff.id);
+  const cur = SESSIONS[c.sessionId] && SESSIONS[c.sessionId].effort===eff.id ? SESSIONS[c.sessionId] : openSessions[0];
+  const right = `<div class="vc-right">
+    <div class="vc-tabs">${openSessions.length? openSessions.map(s=>`
+      <button class="vc-tab ${cur&&cur.id===s.id?'active':''}" onclick="state.c.sessionId='${s.id}';render()">
+        <span class="dot ${STATUS_META[s.status].dot}"></span>${s.title}</button>`).join('') :
+      '<div class="vc-tab dimmer">no sessions</div>'}</div>
+    ${cur? chatView(cur,{compactHead:true}) : '<div class="dim" style="padding:24px">Start a session to see it here.</div>'}
+  </div>`;
+
+  return `<div class="vc">${tree}<div class="vc-mid">${rail}${detail}</div>${right}</div>`;
+}
+
+/* =============================== switcher + boot =============================== */
+function renderSwitcher(){
+  const v = VARIANTS.find(x=>x.key===state.variant);
+  document.getElementById('switcher').innerHTML = `
+    <button onclick="cycle(-1)" title="previous (←)">←</button>
+    <div class="vname">${v.key} — ${v.name}<small>${v.desc}</small></div>
+    <button onclick="cycle(1)" title="next (→)">→</button>
+    <button onclick="toggleTheme()" title="toggle theme">${state.theme==='dark'?'☀︎':'☾'}</button>`;
+}
+function render(){
+  document.documentElement.dataset.theme = state.theme;
+  const app = document.getElementById('app');
+  app.innerHTML = state.variant==='A'?renderA():state.variant==='B'?renderB():renderC();
+  renderSwitcher();
+  document.querySelectorAll('.chat-scroll').forEach(el=>el.scrollTop=el.scrollHeight);
+}
+document.addEventListener('keydown', e=>{
+  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
+  if (e.key==='ArrowLeft') cycle(-1);
+  if (e.key==='ArrowRight') cycle(1);
+});
+syncUrl(); render();
+</script>
+</body>
+</html>
