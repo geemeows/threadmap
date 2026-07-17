@@ -43,7 +43,7 @@ export class GhPrSource implements PRSource {
     // Closed-unmerged PRs are abandoned — thread/verdict state is irrelevant.
     const review =
       state === 'closed' ? { unresolved: 0 } : await this.reviewState(repoDir, pr.number)
-    const info: PRInfo = { url: pr.url, state, unresolvedReviewThreads: review.unresolved }
+    const info: PRInfo = { url: pr.url, number: pr.number, state, unresolvedReviewThreads: review.unresolved }
     if (review.verdict) info.agentVerdict = review.verdict
     if (state === 'open' && pr.mergeable === 'CONFLICTING') info.conflicting = true
     // `Ticket: #<n>` body backstop (#26) — GitHub-tracker refs only; Linear

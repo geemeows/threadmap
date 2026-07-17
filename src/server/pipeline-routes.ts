@@ -48,6 +48,16 @@ export function createPipelineApp(deps: PipelineRouteDeps): Hono {
     }
   })
 
+  app.post('/review', async (c) => {
+    const { effort, ticket } = await body(c)
+    if (!effort || !ticket) return c.json({ error: 'missing effort or ticket' }, 400)
+    try {
+      return c.json(await (await deps.orchestrator()).startReview(effort, ticket))
+    } catch (err) {
+      return c.json({ error: message(err) }, 502)
+    }
+  })
+
   app.post('/reconcile', async (c) => {
     const { effort, ticket } = await body(c)
     if (!effort || !ticket) return c.json({ error: 'missing effort or ticket' }, 400)

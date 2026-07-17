@@ -78,7 +78,7 @@ describe('GhPrSource', () => {
       })
     }
     const pr = await new GhPrSource(exec).ticketPR('/ws/repo', ref('o/repo#2'), 'tm/effort/1')
-    expect(pr).toEqual({ url: 'https://x/pull/7', state: 'open', unresolvedReviewThreads: 1 })
+    expect(pr).toEqual({ url: 'https://x/pull/7', number: 7, state: 'open', unresolvedReviewThreads: 1 })
     expect(calls[0]).toEqual([
       '/ws/repo', 'pr', 'list', '--base', 'tm/effort/1', '--state', 'all',
       '--json', 'number,url,state,headRefName,body,mergeable', '--limit', '100',
@@ -165,6 +165,7 @@ describe('GhPrSource', () => {
     })
     expect(await abandoned.ticketPR('/r', ref('o/repo#2'), 'tm/effort/1')).toEqual({
       url: 'u',
+      number: 7,
       state: 'closed',
       unresolvedReviewThreads: 0,
     })

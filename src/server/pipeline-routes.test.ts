@@ -58,9 +58,24 @@ describe('pipeline routes', () => {
     expect(calls).toEqual([['o/home#1', 'o/web#42']])
   })
 
+  it('starts a review session and returns its meta (#52)', async () => {
+    const calls: string[][] = []
+    const app = appWith({
+      startReview: async (effort: string, ticket: string) => {
+        calls.push([effort, ticket])
+        return { id: 's2', status: 'running' } as never
+      },
+    })
+    const res = await post(app, '/review', { effort: 'o/home#1', ticket: 'o/web#42' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ id: 's2', status: 'running' })
+    expect(calls).toEqual([['o/home#1', 'o/web#42']])
+  })
+
   it('400s on missing parameters', async () => {
     const app = appWith({})
     expect((await post(app, '/implement', { effort: 'o/home#1' })).status).toBe(400)
+    expect((await post(app, '/review', { ticket: 'o/web#42' })).status).toBe(400)
     expect((await post(app, '/reconcile', {})).status).toBe(400)
     expect((await post(app, '/land', {})).status).toBe(400)
     expect((await post(app, '/cleanup', {})).status).toBe(400)

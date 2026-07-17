@@ -14,6 +14,7 @@ import { refSlug, trunkBranch } from '../gating/branches.js'
 import { closeEffort } from '../gating/override.js'
 import type { TicketRef, TrackerAdapter } from '../tracker/types.js'
 import { implementSessionInstructions, trunkToMainPrBody } from './implement-prompt.js'
+import { reviewSessionInstructions } from './review-prompt.js'
 import {
   addTrunkWorktree,
   addWorktree,
@@ -108,6 +109,48 @@ export class PipelineOrchestrator {
       permissionPolicy: { mode: 'default', intercept: true },
       effort: effortId,
       stage: 'implement',
+    })
+  }
+
+  /**
+   * One review session per ticket PR (#52): same shape as startImplement, but
+   * the session reads the open PR instead of writing code — it runs in the
+   * ticket's worktree (or a fresh one detached at the trunk head when the
+   * implement worktree is gone) and records its verdict per the #41 advisory
+   * convention. Re-review is the same call again; the latest verdict wins.
+   */
+  async startReview(effortId: string, ticketId: string): Promise<SessionMeta> {
+    const effort = this.deps.mintEffortRef(effortId)
+    const ticket = await this.findTicket(effort, ticketId)
+    const { repoDir, repoName } = await this.repoFor(ticket)
+    const trunk = trunkBranch(effort)
+    const pr = await this.deps.prSource.ticketPR(repoDir, ticket, trunk)
+    if (pr?.state !== 'open') {
+      throw new Error(`no open PR for ticket ${ticket.display} — nothing to review`)
+    }
+    const prNumber = pr.number ?? this.prNumberFromUrl(pr.url)
+    const wt = worktreePath(this.deps.workspace.root, repoName, ticket)
+    if (!(await listWorktrees(repoDir, this.exec)).includes(wt)) {
+      await addWorktree(repoDir, wt, trunk, this.exec)
+    }
+    const { title, body } = await this.deps.tracker.ticketBody(ticket)
+    const prompt = [
+      `You are reviewing the PR for one ticket of effort ${effort.display} (${effort.url}).`,
+      ``,
+      `# Ticket ${ticket.display}: ${title}`,
+      ``,
+      body,
+      ``,
+      `Review PR #${prNumber} (${pr.url}) against the ticket above: read the full diff (\`gh pr diff ${prNumber}\`), check correctness and test coverage, and judge whether the change does what the ticket asks. Do not push commits or merge anything — your output is the review itself.`,
+      ``,
+      reviewSessionInstructions(prNumber),
+    ].join('\n')
+    return this.deps.registry.start({
+      cwd: wt,
+      prompt,
+      permissionPolicy: { mode: 'default', intercept: true },
+      effort: effortId,
+      stage: 'review',
     })
   }
 
@@ -324,6 +367,13 @@ export class PipelineOrchestrator {
       byRepo.set(repoDir, entry)
     }
     return byRepo
+  }
+
+  /** All ticket PRs live on GitHub regardless of tracker (#19 §6), so `/pull/<n>` is always present. */
+  private prNumberFromUrl(url: string): number {
+    const match = /\/pull\/(\d+)(?:\D|$)/.exec(url)
+    if (!match) throw new Error(`cannot derive a PR number from ${url}`)
+    return Number(match[1])
   }
 
   private async openLandingPr(repoDir: string, trunk: string, base: string): Promise<string | null> {

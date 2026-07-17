@@ -27,6 +27,8 @@ export interface TicketView {
 
 export interface PRInfo {
   url: string
+  /** PR number in the owning repo — review sessions address the PR via `gh pr <n>` (#52). */
+  number?: number
   state: 'open' | 'merged' | 'closed'
   unresolvedReviewThreads: number
   /** Open PR that GitHub reports as CONFLICTING with the trunk — the UI's cue to offer a reconcile session (#11). */

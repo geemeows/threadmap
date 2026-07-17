@@ -266,6 +266,13 @@ export class Store {
     return null
   }
 
+  async startReview(effort: string, ticket: string): Promise<string | null> {
+    const res = await mutateJson<SessionMeta>('/api/pipeline/review', 'POST', { effort, ticket })
+    if (res.error) return res.error
+    if (res.data) this.adoptSession(res.data)
+    return null
+  }
+
   async startReconcile(effort: string, ticket: string): Promise<string | null> {
     const res = await mutateJson<SessionMeta>('/api/pipeline/reconcile', 'POST', { effort, ticket })
     if (res.error) return res.error

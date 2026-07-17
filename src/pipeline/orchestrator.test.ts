@@ -123,6 +123,73 @@ describe('startImplement', () => {
   })
 })
 
+describe('startReview', () => {
+  const openPr: PRInfo = {
+    url: 'https://github.com/acme/web/pull/7',
+    number: 7,
+    state: 'open',
+    unresolvedReviewThreads: 0,
+  }
+
+  it('starts a review session in the ticket worktree on ticket body + PR + verdict convention', async () => {
+    const { registry, started } = fakeRegistry()
+    const { exec, calls } = fakeExec({ 'worktree list': `worktree ${WT}\n` })
+    const orch = new PipelineOrchestrator(
+      makeDeps({ registry, exec, prSource: fakePrSource({ [TICKET.id]: openPr }) }),
+    )
+    const meta = await orch.startReview(EFFORT_ID, TICKET.id)
+
+    expect(calls.some((c) => c.includes('worktree add'))).toBe(false)
+    expect(meta.status).toBe('running')
+    const opts = started[0]!
+    expect(opts.cwd).toBe(WT)
+    expect(opts.stage).toBe('review')
+    expect(opts.effort).toBe(EFFORT_ID)
+    expect(opts.prompt).toContain('Add the flux capacitor')
+    expect(opts.prompt).toContain('Wire 1.21 gigawatts.')
+    expect(opts.prompt).toContain('gh pr diff 7')
+    expect(opts.prompt).toContain('gh pr review 7 --comment')
+    expect(opts.prompt).toContain('Verdict: approve')
+    expect(opts.permissionPolicy).toEqual({ mode: 'default', intercept: true })
+  })
+
+  it('adds a fresh worktree detached at the trunk head when the implement worktree is gone', async () => {
+    const { registry, started } = fakeRegistry()
+    const { exec, calls } = fakeExec({ 'worktree list': 'worktree /ws/web\n' })
+    const orch = new PipelineOrchestrator(
+      makeDeps({ registry, exec, prSource: fakePrSource({ [TICKET.id]: openPr }) }),
+    )
+    await orch.startReview(EFFORT_ID, TICKET.id)
+    expect(calls).toContain(`git worktree add --detach ${WT} origin/tm/effort/1`)
+    expect(started[0]!.cwd).toBe(WT)
+  })
+
+  it('derives the PR number from the URL when the source omits it', async () => {
+    const { registry, started } = fakeRegistry()
+    const { exec } = fakeExec({ 'worktree list': `worktree ${WT}\n` })
+    const { number: _dropped, ...urlOnly } = openPr
+    const orch = new PipelineOrchestrator(
+      makeDeps({ registry, exec, prSource: fakePrSource({ [TICKET.id]: urlOnly }) }),
+    )
+    await orch.startReview(EFFORT_ID, TICKET.id)
+    expect(started[0]!.prompt).toContain('gh pr review 7 --comment')
+  })
+
+  it('rejects when the ticket has no open PR', async () => {
+    const { exec } = fakeExec({ 'worktree list': `worktree ${WT}\n` })
+    const noPr = new PipelineOrchestrator(makeDeps({ exec }))
+    await expect(noPr.startReview(EFFORT_ID, TICKET.id)).rejects.toThrow(/no open PR/)
+
+    const mergedPr = new PipelineOrchestrator(
+      makeDeps({
+        exec,
+        prSource: fakePrSource({ [TICKET.id]: { ...openPr, state: 'merged' } }),
+      }),
+    )
+    await expect(mergedPr.startReview(EFFORT_ID, TICKET.id)).rejects.toThrow(/no open PR/)
+  })
+})
+
 describe('startReconcile', () => {
   it('requires the ticket worktree to exist', async () => {
     const { exec } = fakeExec({ 'worktree list': 'worktree /ws/web\n' })

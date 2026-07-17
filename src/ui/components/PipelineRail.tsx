@@ -197,7 +197,12 @@ function StageDetail({
           />
         )}
         {(rail.key === 'implement' || rail.key === 'code-review') && snapshot && (
-          <TicketList effortId={effortId} tickets={snapshot.tickets} refresh={refresh} />
+          <TicketList
+            effortId={effortId}
+            tickets={snapshot.tickets}
+            reviewable={rail.key === 'code-review'}
+            refresh={refresh}
+          />
         )}
         {rail.key === 'code-review' && snapshot && (gate?.met || gate?.overridden) && (
           <LandEffort effortId={effortId} onDone={refresh} />
@@ -295,8 +300,22 @@ function OverrideGate({
   )
 }
 
-/** Per-ticket rows with the implement-stage actions (#37): start a session, reconcile a conflicted PR. */
-function TicketList({ effortId, tickets, refresh }: { effortId: string; tickets: TicketView[]; refresh: () => void }) {
+/**
+ * Per-ticket rows with the per-stage actions (#37/#52): start a session,
+ * reconcile a conflicted PR, and — on the code-review rows only — launch a
+ * review session against the ticket's open PR.
+ */
+function TicketList({
+  effortId,
+  tickets,
+  reviewable,
+  refresh,
+}: {
+  effortId: string
+  tickets: TicketView[]
+  reviewable: boolean
+  refresh: () => void
+}) {
   const [busy, setBusy] = useState<string | null>(null)
 
   const run = async (key: string, action: () => Promise<string | null>) => {
@@ -339,6 +358,15 @@ function TicketList({ effortId, tickets, refresh }: { effortId: string; tickets:
                 onClick={() => void run(`reconcile:${id}`, () => store.startReconcile(effortId, id))}
               >
                 {busy === `reconcile:${id}` ? 'Starting…' : '⚡ Reconcile'}
+              </button>
+            )}
+            {reviewable && t.pr?.state === 'open' && (
+              <button
+                className="btn sm"
+                disabled={busy !== null}
+                onClick={() => void run(`review:${id}`, () => store.startReview(effortId, id))}
+              >
+                {busy === `review:${id}` ? 'Starting…' : t.pr.agentVerdict ? '🔍 Review again' : '🔍 Review'}
               </button>
             )}
             {t.pr?.state !== 'merged' && (
