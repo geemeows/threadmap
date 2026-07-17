@@ -9,6 +9,7 @@ import { ClaudeCodeAdapter } from '../adapters/index.js'
 import type { GhExec } from '../gating/index.js'
 import { listEfforts } from './efforts.js'
 import { SessionRegistry } from './registry.js'
+import { createStageService, type StageService } from './stage.js'
 import { TranscriptStore } from './transcripts.js'
 import { createConnection } from './ws.js'
 import { discoverWorkspace, type Workspace } from './workspace.js'
@@ -21,6 +22,7 @@ export { SessionRegistry, RegistryError, type StartSessionOptions } from './regi
 export { TranscriptStore, type SessionMeta, type TranscriptEvent } from './transcripts.js'
 export { createConnection, type ClientMessage, type ServerMessage } from './ws.js'
 export { discoverWorkspace, type RepoInfo, type Workspace } from './workspace.js'
+export { createStageService, loadTrackerConfig, type StageService, type TrackerConfig } from './stage.js'
 
 export interface AppDeps {
   workspace: Workspace
@@ -28,10 +30,19 @@ export interface AppDeps {
   store: TranscriptStore
   /** Injectable for tests; defaults to the real `gh` CLI. */
   ghExec?: GhExec
+  /** Injectable for tests; defaults to a tracker-config-driven service. */
+  stageService?: StageService
 }
 
 export function createApp(deps: AppDeps) {
   const { workspace, registry, store, ghExec } = deps
+  // Built lazily on first /api/stage hit — tracker config + repo resolution
+  // need I/O, and createApp stays synchronous.
+  let stagePromise: Promise<StageService> | undefined
+  const stageService = () =>
+    (stagePromise ??= deps.stageService
+      ? Promise.resolve(deps.stageService)
+      : createStageService(workspace, ghExec ? { ghExec } : {}))
   const app = new Hono()
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app })
 
@@ -42,11 +53,15 @@ export function createApp(deps: AppDeps) {
       includeClosed: c.req.query('state') === 'all',
     })),
   )
-  // Stage derivation needs a TrackerAdapter (#21); the route exists now so the
-  // UI's pipeline rail has one wire shape to bind to (StageSnapshot).
-  app.get('/api/stage', (c) =>
-    c.json({ error: 'stage derivation lands with the TrackerAdapter (#21)' }, 501),
-  )
+  app.get('/api/stage', async (c) => {
+    const effort = c.req.query('effort')
+    if (!effort) return c.json({ error: 'missing ?effort=<ref-id>' }, 400)
+    try {
+      return c.json(await (await stageService()).snapshot(effort))
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 502)
+    }
+  })
   app.get('/api/sessions', async (c) => c.json(await registry.list()))
   app.get('/api/sessions/:id', async (c) => {
     const id = c.req.param('id')
