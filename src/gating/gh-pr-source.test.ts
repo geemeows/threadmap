@@ -57,11 +57,26 @@ describe('GhPrSource', () => {
     expect(pr).toEqual({ url: 'https://x/pull/7', state: 'open', unresolvedReviewThreads: 1 })
     expect(calls[0]).toEqual([
       '/ws/repo', 'pr', 'list', '--base', 'tm/effort/1', '--state', 'all',
-      '--json', 'number,url,state,headRefName,body', '--limit', '100',
+      '--json', 'number,url,state,headRefName,body,mergeable', '--limit', '100',
     ])
     expect(calls[1]![0]).toBe('/ws/repo')
     expect(calls[1]).toContain('graphql')
     expect(calls[1]).toContain('number=7')
+  })
+
+  it('flags an open PR GitHub reports as CONFLICTING, but never a merged one', async () => {
+    const source = (state: 'OPEN' | 'MERGED', mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN') =>
+      new GhPrSource(async (args) => {
+        if (args[0] === 'pr')
+          return JSON.stringify([ghPr({ number: 7, state, headRefName: 'tm/fix/2-crash', body: 'Ticket: #2', mergeable })])
+        return JSON.stringify({})
+      })
+    const conflicted = await source('OPEN', 'CONFLICTING').ticketPR('/r', ref('o/repo#2'), 'tm/effort/1')
+    expect(conflicted?.conflicting).toBe(true)
+    const clean = await source('OPEN', 'MERGEABLE').ticketPR('/r', ref('o/repo#2'), 'tm/effort/1')
+    expect(clean?.conflicting).toBeUndefined()
+    const merged = await source('MERGED', 'CONFLICTING').ticketPR('/r', ref('o/repo#2'), 'tm/effort/1')
+    expect(merged?.conflicting).toBeUndefined()
   })
 
   it('flags a GitHub ticket PR whose body lacks the Ticket: #<n> reference', async () => {

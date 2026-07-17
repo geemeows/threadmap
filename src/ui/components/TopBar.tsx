@@ -26,9 +26,9 @@ export function TopBar() {
           {sessionLabel(view)}
         </button>
       ))}
-      {queue.length > 0 && (
+      {queue.length + state.notices.length > 0 && (
         <button className="pill amber" onClick={() => store.setInboxOpen(true)}>
-          ⚑ {queue.length} needs you
+          ⚑ {queue.length + state.notices.length} needs you
         </button>
       )}
       {total > 0 && (

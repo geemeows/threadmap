@@ -5,7 +5,9 @@
 import { useSyncExternalStore } from 'react'
 import type {
   ClientMessage,
+  CompleteResult,
   EffortSummary,
+  LandResult,
   PermissionDecision,
   ServerMessage,
   SessionMeta,
@@ -23,6 +25,14 @@ export interface SessionView {
   transcriptLoaded: boolean
 }
 
+/** A pipeline outcome that needs the human (kept-dirty worktree after Complete) — rides the Needs-you queue. */
+export interface PipelineNotice {
+  id: string
+  effort: string
+  repo: string
+  text: string
+}
+
 export interface State {
   conn: 'connecting' | 'open' | 'closed'
   theme: 'dark' | 'light'
@@ -38,6 +48,7 @@ export interface State {
   setup: SetupStatus | null
   /** Panel visibility; forced open (guided mode) while the workspace isn't ready. */
   setupOpen: boolean
+  notices: PipelineNotice[]
   error: string | null
 }
 
@@ -57,6 +68,7 @@ export class Store {
     newSessionOpen: false,
     setup: null,
     setupOpen: false,
+    notices: [],
     error: null,
   }
   private listeners = new Set<Listener>()
@@ -136,7 +148,8 @@ export class Store {
   }
 
   private sendWs(msg: ClientMessage) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg))
+    // Instance constant, not the global — node unit tests have no WebSocket.
+    if (this.ws && this.ws.readyState === this.ws.OPEN) this.ws.send(JSON.stringify(msg))
   }
 
   private onServerMessage(msg: ServerMessage) {
@@ -234,6 +247,62 @@ export class Store {
     this.sendWs({ type: 'kill', sessionId })
   }
 
+  /* ---------- pipeline actions (#37) — REST-started sessions stream over the same WS ---------- */
+
+  /** Register a session the server started via REST, attach its stream, optionally focus it. */
+  adoptSession(meta: SessionMeta, opts: { select?: boolean } = {}) {
+    this.upsertSession(meta)
+    this.attach(meta.id)
+    if (opts.select ?? true)
+      this.set({ selectedSession: meta.id, selectedEffort: meta.effort ?? this.state.selectedEffort })
+  }
+
+  async startImplement(effort: string, ticket: string): Promise<string | null> {
+    const res = await mutateJson<SessionMeta>('/api/pipeline/implement', 'POST', { effort, ticket })
+    if (res.error) return res.error
+    if (res.data) this.adoptSession(res.data)
+    return null
+  }
+
+  async startReconcile(effort: string, ticket: string): Promise<string | null> {
+    const res = await mutateJson<SessionMeta>('/api/pipeline/reconcile', 'POST', { effort, ticket })
+    if (res.error) return res.error
+    if (res.data) this.adoptSession(res.data)
+    return null
+  }
+
+  async landEffort(effort: string): Promise<{ results?: LandResult[]; error?: string }> {
+    const res = await mutateJson<{ results: LandResult[] }>('/api/pipeline/land', 'POST', { effort })
+    if (res.error) return { error: res.error }
+    const results = res.data?.results ?? []
+    // Conflicted repos got a sync session — attach it, but keep the rail in view.
+    for (const r of results) if (r.session) this.adoptSession(r.session, { select: false })
+    return { results }
+  }
+
+  async completeEffort(effort: string, force = false): Promise<{ results?: CompleteResult[]; error?: string }> {
+    const res = await mutateJson<{ results: CompleteResult[] }>('/api/pipeline/complete', 'POST', { effort, force })
+    if (res.error) return { error: res.error }
+    const results = res.data?.results ?? []
+    const kept = results.flatMap((r) =>
+      r.keptWorktrees.map((wt) => ({
+        id: `${effort}:${wt}`,
+        effort,
+        repo: r.repo,
+        text: `Worktree kept — uncommitted work in ${wt}`,
+      })),
+    )
+    if (kept.length > 0) {
+      const known = new Set(this.state.notices.map((n) => n.id))
+      this.set({ notices: [...this.state.notices, ...kept.filter((n) => !known.has(n.id))] })
+    }
+    return { results }
+  }
+
+  dismissNotice(id: string) {
+    this.set({ notices: this.state.notices.filter((n) => n.id !== id) })
+  }
+
   selectEffort(effortId: string | null) {
     this.set({ selectedEffort: effortId, selectedStageIdx: null })
   }
@@ -269,6 +338,10 @@ export class Store {
 
   setNewSessionOpen(open: boolean) {
     this.set({ newSessionOpen: open })
+  }
+
+  setError(message: string) {
+    this.set({ error: message })
   }
 
   dismissError() {

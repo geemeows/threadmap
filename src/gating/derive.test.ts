@@ -20,6 +20,11 @@ function inputs(over: Partial<GateInputs> = {}): GateInputs {
 }
 
 describe('deriveStage', () => {
+  it('exposes the ticket views on the snapshot for per-ticket UI actions', () => {
+    const tickets = [ticket(2, { pr: pr({ conflicting: true }) }), ticket(3)]
+    expect(deriveStage(inputs({ tickets })).tickets).toEqual(tickets)
+  })
+
   it('sits at planning while wayfinder children are open', () => {
     const snap = deriveStage(inputs({ openPlanningChildren: 2 }))
     expect(snap.stage).toBe('planning')

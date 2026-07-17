@@ -10,6 +10,7 @@ export function Inbox() {
   const state = useStore()
   if (!state.inboxOpen) return null
   const queue = needsYou(state)
+  const waiting = queue.length + state.notices.length
 
   return (
     <div
@@ -22,14 +23,28 @@ export function Inbox() {
         <div className="flex items-center gap-2.5 p-[14px_18px]" style={{ borderBottom: '1px solid var(--border)' }}>
           <b>Needs you</b>
           <span className="dimmer text-[12px]">
-            {queue.length} session{queue.length === 1 ? '' : 's'} waiting
+            {waiting} item{waiting === 1 ? '' : 's'} waiting
           </span>
           <span className="flex-1" />
           <button className="btn sm" onClick={() => store.setInboxOpen(false)}>
             ✕
           </button>
         </div>
-        {queue.length === 0 && <div className="dim p-5">Nothing waiting on you.</div>}
+        {waiting === 0 && <div className="dim p-5">Nothing waiting on you.</div>}
+        {state.notices.map((n) => (
+          <div key={n.id} className="session-row" style={{ cursor: 'default' }}>
+            <span className="dot approval" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-semibold">Dirty worktree kept — {n.repo}</div>
+              <div className="dimmer mono truncate">
+                {n.effort} · {n.text}
+              </div>
+            </div>
+            <button className="btn sm" onClick={() => store.dismissNotice(n.id)}>
+              dismiss
+            </button>
+          </div>
+        ))}
         {queue.map(({ view, status }) => {
           const approvals = pendingApprovals(view.events)
           return (

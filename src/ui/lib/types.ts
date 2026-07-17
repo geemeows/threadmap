@@ -2,7 +2,8 @@
 // against the real wire shapes instead of hand-mirrored copies.
 
 export type { PermissionDecision, SessionOutcome, Usage } from '../../adapters/types.js'
-export type { StageSnapshot, Stage } from '../../gating/types.js'
+export type { StageSnapshot, Stage, TicketView } from '../../gating/types.js'
+export type { CompleteResult, LandResult } from '../../pipeline/orchestrator.js'
 export type { EffortSummary } from '../../server/efforts.js'
 export type { StartSessionOptions } from '../../server/registry.js'
 export type { SessionMeta, TranscriptEvent } from '../../server/transcripts.js'

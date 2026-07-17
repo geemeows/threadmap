@@ -25,6 +25,7 @@ interface GhPr {
   state: 'OPEN' | 'MERGED' | 'CLOSED'
   headRefName: string
   body: string
+  mergeable?: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'
 }
 
 export class GhPrSource implements PRSource {
@@ -32,7 +33,7 @@ export class GhPrSource implements PRSource {
 
   async ticketPR(repoDir: string, ticket: TicketRef, trunk: string): Promise<PRInfo | null> {
     const out = await this.exec(
-      ['pr', 'list', '--base', trunk, '--state', 'all', '--json', 'number,url,state,headRefName,body', '--limit', '100'],
+      ['pr', 'list', '--base', trunk, '--state', 'all', '--json', 'number,url,state,headRefName,body,mergeable', '--limit', '100'],
       repoDir,
     )
     const pattern = ticketBranchPattern(ticket)
@@ -42,6 +43,7 @@ export class GhPrSource implements PRSource {
     // Closed-unmerged PRs are abandoned — thread state is irrelevant.
     const unresolved = state === 'closed' ? 0 : await this.unresolvedThreads(repoDir, pr.number)
     const info: PRInfo = { url: pr.url, state, unresolvedReviewThreads: unresolved }
+    if (state === 'open' && pr.mergeable === 'CONFLICTING') info.conflicting = true
     // `Ticket: #<n>` body backstop (#26) — GitHub-tracker refs only; Linear
     // linkage rides the branch name itself. Warning, never a gate.
     const issue = githubIssueNumber(ticket)

@@ -29,6 +29,8 @@ export interface PRInfo {
   url: string
   state: 'open' | 'merged' | 'closed'
   unresolvedReviewThreads: number
+  /** Open PR that GitHub reports as CONFLICTING with the trunk — the UI's cue to offer a reconcile session (#11). */
+  conflicting?: boolean
   /**
    * Set (true) when a GitHub-tracker ticket's PR body lacks its `Ticket: #<n>`
    * reference (#26) — a Needs-you warning, never a gate condition.
@@ -50,6 +52,8 @@ export interface StageSnapshot {
   /** First stage whose gate is neither met nor overridden; code-review once all pass. */
   stage: Stage
   gates: GateStatus[]
+  /** Per-ticket view (PR linkage included) so the UI can offer per-ticket actions. */
+  tickets: TicketView[]
   /** All five gates pass — the UI may offer one-click "Complete effort" (never automatic). */
   readyToComplete: boolean
   /** Non-blocking Needs-you notices (e.g. a PR body missing `Ticket: #<n>`). */

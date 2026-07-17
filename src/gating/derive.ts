@@ -14,6 +14,7 @@ export function deriveStage(inputs: GateInputs): StageSnapshot {
   return {
     stage: firstUnpassed?.stage ?? 'code-review',
     gates,
+    tickets: inputs.tickets,
     readyToComplete: firstUnpassed === undefined,
     warnings: collectWarnings(inputs),
   }
