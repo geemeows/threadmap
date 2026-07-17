@@ -1,34 +1,47 @@
-import { useEffect, useState } from 'react'
+// The pipeline UI shell — locked IA from #8, variant C: IDE-style three-pane
+// split (efforts tree | pipeline rail with gates | docked tabbed session
+// chat), Needs-you queue in the top bar, approvals inline + global inbox.
 
-type WsStatus = 'connecting' | 'connected' | 'closed'
+import { useEffect } from 'react'
+import { EffortsTree } from './components/EffortsTree.js'
+import { Inbox } from './components/Inbox.js'
+import { NewSessionDialog } from './components/NewSessionDialog.js'
+import { PipelineRail } from './components/PipelineRail.js'
+import { SessionPane } from './components/SessionPane.js'
+import { TopBar } from './components/TopBar.js'
+import { store, useStore } from './lib/store.js'
 
 export function App() {
-  const [status, setStatus] = useState<WsStatus>('connecting')
-  const [lastMessage, setLastMessage] = useState<string | null>(null)
+  const state = useStore()
 
   useEffect(() => {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${proto}://${location.host}/ws`)
-    ws.onopen = () => setStatus('connected')
-    ws.onclose = () => setStatus('closed')
-    ws.onmessage = (event) => setLastMessage(String(event.data))
-    return () => ws.close()
+    void store.init()
   }, [])
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = state.theme
+  }, [state.theme])
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-neutral-900 text-neutral-100">
-      <h1 className="text-3xl font-semibold tracking-tight">threadmap</h1>
-      <p className="text-sm text-neutral-400">
-        WebSocket:{' '}
-        <span className={status === 'connected' ? 'text-emerald-400' : 'text-amber-400'}>
-          {status}
-        </span>
-      </p>
-      {lastMessage !== null && (
-        <pre className="rounded-md bg-neutral-800 px-4 py-2 text-xs text-neutral-300">
-          {lastMessage}
-        </pre>
-      )}
-    </main>
+    <div className="frame">
+      <div className="inner">
+        <TopBar />
+        {state.error && (
+          <div className="flex items-center gap-2 px-4 py-1.5 text-[12.5px]" style={{ color: 'var(--red)', borderBottom: '1px solid var(--border)' }}>
+            {state.error}
+            <button className="btn sm ml-auto" onClick={() => store.dismissError()}>
+              dismiss
+            </button>
+          </div>
+        )}
+        <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: '256px minmax(340px,1fr) minmax(380px,44%)' }}>
+          <EffortsTree />
+          <PipelineRail />
+          <SessionPane />
+        </div>
+      </div>
+      <Inbox />
+      <NewSessionDialog />
+    </div>
   )
 }

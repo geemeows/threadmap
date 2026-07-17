@@ -1,0 +1,270 @@
+// One client-side store: REST snapshots + the single WS channel (#9), bound
+// to React via useSyncExternalStore. Live sessions are attached eagerly so
+// the Needs-you queue sees approvals in sessions no pane is looking at.
+
+import { useSyncExternalStore } from 'react'
+import type {
+  ClientMessage,
+  EffortSummary,
+  PermissionDecision,
+  ServerMessage,
+  SessionMeta,
+  StartSessionOptions,
+  TranscriptEvent,
+  Workspace,
+} from './types.js'
+
+export interface SessionView {
+  meta: SessionMeta
+  events: TranscriptEvent[]
+  /** Ended sessions lazy-load their transcript from REST on first open. */
+  transcriptLoaded: boolean
+}
+
+export interface State {
+  conn: 'connecting' | 'open' | 'closed'
+  theme: 'dark' | 'light'
+  workspace: Workspace | null
+  efforts: EffortSummary[]
+  sessions: Record<string, SessionView>
+  selectedEffort: string | null
+  selectedSession: string | null
+  /** Rail stage the user is inspecting; null = the effort's current stage. */
+  selectedStageIdx: number | null
+  inboxOpen: boolean
+  newSessionOpen: boolean
+  error: string | null
+}
+
+type Listener = () => void
+
+export class Store {
+  private state: State = {
+    conn: 'connecting',
+    theme: (storedTheme() as 'dark' | 'light') ?? 'dark',
+    workspace: null,
+    efforts: [],
+    sessions: {},
+    selectedEffort: null,
+    selectedSession: null,
+    selectedStageIdx: null,
+    inboxOpen: false,
+    newSessionOpen: false,
+    error: null,
+  }
+  private listeners = new Set<Listener>()
+  private ws: WebSocket | null = null
+  private attached = new Set<string>()
+
+  getState = (): State => this.state
+
+  subscribe = (listener: Listener): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private set(patch: Partial<State>) {
+    this.state = { ...this.state, ...patch }
+    for (const listener of this.listeners) listener()
+  }
+
+  /* ---------- bootstrap ---------- */
+
+  async init() {
+    this.connect()
+    const [workspace, efforts, sessions] = await Promise.all([
+      fetchJson<Workspace>('/api/workspace'),
+      fetchJson<EffortSummary[]>('/api/efforts'),
+      fetchJson<SessionMeta[]>('/api/sessions'),
+    ])
+    const views: Record<string, SessionView> = { ...this.state.sessions }
+    for (const meta of sessions ?? []) {
+      views[meta.id] ??= { meta, events: [], transcriptLoaded: false }
+    }
+    this.set({
+      workspace: workspace ?? null,
+      efforts: efforts ?? [],
+      sessions: views,
+      selectedEffort: this.state.selectedEffort ?? efforts?.[0]?.ref.id ?? null,
+    })
+    for (const meta of sessions ?? []) {
+      if (meta.status === 'running') this.attach(meta.id)
+    }
+  }
+
+  private connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+    const ws = new WebSocket(`${proto}://${location.host}/ws`)
+    this.ws = ws
+    ws.onopen = () => {
+      this.set({ conn: 'open' })
+      for (const id of this.attached) this.sendWs({ type: 'attach', sessionId: id })
+    }
+    ws.onclose = () => {
+      this.set({ conn: 'closed' })
+      setTimeout(() => this.connect(), 1500)
+    }
+    ws.onmessage = (event) => this.onServerMessage(JSON.parse(String(event.data)) as ServerMessage)
+  }
+
+  private sendWs(msg: ClientMessage) {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg))
+  }
+
+  private onServerMessage(msg: ServerMessage) {
+    if (msg.type === 'error') {
+      this.set({ error: msg.message })
+      return
+    }
+    if (msg.type === 'session') {
+      const meta = msg.meta as SessionMeta
+      this.upsertSession(meta)
+      this.attached.add(meta.id)
+      this.set({ selectedSession: meta.id, selectedEffort: meta.effort ?? this.state.selectedEffort })
+      return
+    }
+    const view = this.state.sessions[msg.sessionId]
+    if (!view) return
+    const event = msg.event as TranscriptEvent
+    const meta = { ...view.meta }
+    if (event.type === 'usage_update') meta.usage = event.usage
+    if (event.type === 'session_started') meta.resumeToken = event.resumeToken
+    if (event.type === 'session_ended') {
+      meta.status = 'ended'
+      meta.outcome = event.outcome
+      if (event.usage) meta.usage = event.usage
+      if (!event.resumable) meta.resumeToken = undefined
+    }
+    this.set({
+      sessions: {
+        ...this.state.sessions,
+        [msg.sessionId]: { ...view, meta, events: [...view.events, event] },
+      },
+    })
+  }
+
+  private upsertSession(meta: SessionMeta) {
+    const existing = this.state.sessions[meta.id]
+    this.set({
+      sessions: {
+        ...this.state.sessions,
+        [meta.id]: existing
+          ? { ...existing, meta }
+          : { meta, events: [], transcriptLoaded: true },
+      },
+    })
+  }
+
+  /* ---------- actions ---------- */
+
+  attach(sessionId: string) {
+    if (this.attached.has(sessionId)) return
+    this.attached.add(sessionId)
+    this.sendWs({ type: 'attach', sessionId })
+  }
+
+  /** Pull an ended session's persisted transcript once. */
+  async loadTranscript(sessionId: string) {
+    const view = this.state.sessions[sessionId]
+    if (!view || view.transcriptLoaded) return
+    this.set({
+      sessions: { ...this.state.sessions, [sessionId]: { ...view, transcriptLoaded: true } },
+    })
+    const events = await fetchJson<TranscriptEvent[]>(`/api/sessions/${sessionId}/transcript`)
+    const current = this.state.sessions[sessionId]
+    if (!current || !events) return
+    this.set({
+      sessions: {
+        ...this.state.sessions,
+        // Live events may have streamed in while loading; persisted ones come first anyway.
+        [sessionId]: { ...current, events: events.length >= current.events.length ? events : current.events },
+      },
+    })
+  }
+
+  startSession(opts: StartSessionOptions) {
+    this.sendWs({ type: 'start_session', ...opts })
+  }
+
+  resumeSession(sessionId: string, prompt: string) {
+    this.sendWs({ type: 'resume_session', sessionId, prompt })
+  }
+
+  sendMessage(sessionId: string, text: string) {
+    this.sendWs({ type: 'send', sessionId, text })
+  }
+
+  respondPermission(sessionId: string, id: string, decision: PermissionDecision) {
+    this.sendWs({ type: 'permission', sessionId, id, decision })
+  }
+
+  interrupt(sessionId: string) {
+    this.sendWs({ type: 'interrupt', sessionId })
+  }
+
+  kill(sessionId: string) {
+    this.sendWs({ type: 'kill', sessionId })
+  }
+
+  selectEffort(effortId: string | null) {
+    this.set({ selectedEffort: effortId, selectedStageIdx: null })
+  }
+
+  selectSession(sessionId: string | null) {
+    if (sessionId) {
+      const view = this.state.sessions[sessionId]
+      if (view?.meta.status === 'running') this.attach(sessionId)
+      else if (view) void this.loadTranscript(sessionId)
+      this.set({
+        selectedSession: sessionId,
+        selectedEffort: view?.meta.effort ?? this.state.selectedEffort,
+        inboxOpen: false,
+      })
+    } else {
+      this.set({ selectedSession: null })
+    }
+  }
+
+  selectStage(idx: number | null) {
+    this.set({ selectedStageIdx: idx })
+  }
+
+  toggleTheme() {
+    const theme = this.state.theme === 'dark' ? 'light' : 'dark'
+    localStorage.setItem('threadmap:theme', theme)
+    this.set({ theme })
+  }
+
+  setInboxOpen(open: boolean) {
+    this.set({ inboxOpen: open })
+  }
+
+  setNewSessionOpen(open: boolean) {
+    this.set({ newSessionOpen: open })
+  }
+
+  dismissError() {
+    this.set({ error: null })
+  }
+}
+
+// Guarded — unit tests import this module outside a browser.
+function storedTheme(): string | null {
+  return typeof localStorage === 'undefined' ? null : localStorage.getItem('threadmap:theme')
+}
+
+async function fetchJson<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+
+export const store = new Store()
+
+export function useStore(): State {
+  return useSyncExternalStore(store.subscribe, store.getState)
+}

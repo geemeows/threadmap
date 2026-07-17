@@ -5,8 +5,17 @@
 
 import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentEvent, SessionOutcome, Usage } from '../adapters/index.js'
+import type { AgentEvent, PermissionDecision, SessionOutcome, Usage } from '../adapters/index.js'
 import { transcriptsDir } from './home.js'
+
+// The adapter seam's AgentEvent stream is CLI output only — it never carries
+// the human's half of the conversation. Re-openable transcripts (MVP extra)
+// need both halves, so the registry records its own entries for user input
+// and permission decisions alongside the agent's events.
+export type TranscriptEvent =
+  | AgentEvent
+  | { type: 'user_message'; text: string }
+  | { type: 'permission_response'; id: string; decision: PermissionDecision }
 
 export interface SessionMeta {
   id: string
@@ -26,7 +35,7 @@ export interface SessionMeta {
 export class TranscriptStore {
   constructor(private dir = transcriptsDir()) {}
 
-  async append(sessionId: string, event: AgentEvent): Promise<void> {
+  async append(sessionId: string, event: TranscriptEvent): Promise<void> {
     await mkdir(this.dir, { recursive: true })
     await appendFile(this.eventsPath(sessionId), `${JSON.stringify(event)}\n`, 'utf8')
   }
@@ -41,12 +50,12 @@ export class TranscriptStore {
     return text === null ? null : (JSON.parse(text) as SessionMeta)
   }
 
-  async readEvents(sessionId: string): Promise<AgentEvent[]> {
+  async readEvents(sessionId: string): Promise<TranscriptEvent[]> {
     const text = await readFile(this.eventsPath(sessionId), 'utf8').catch(() => '')
     return text
       .split('\n')
       .filter(Boolean)
-      .map((line) => JSON.parse(line) as AgentEvent)
+      .map((line) => JSON.parse(line) as TranscriptEvent)
   }
 
   /** All known sessions, newest first — re-openable transcripts survive restarts. */

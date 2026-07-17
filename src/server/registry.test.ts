@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { AgentEvent } from '../adapters/index.js'
+import type { TranscriptEvent } from './transcripts.js'
 import { RegistryError, SessionRegistry } from './registry.js'
 import { TranscriptStore } from './transcripts.js'
 import { FakeAdapter, eventually } from './test-helpers.js'
@@ -20,7 +20,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  await rm(dir, { recursive: true, force: true })
+  // Registry writes are fire-and-forget; let in-flight appends settle before rm.
+  await new Promise((r) => setTimeout(r, 0))
+  await rm(dir, { recursive: true, force: true }).catch(() => {})
 })
 
 const startOpts = {
@@ -37,7 +39,7 @@ describe('SessionRegistry', () => {
     expect(meta.status).toBe('running')
     expect(meta.effort).toBe('geemeows/threadline#1')
 
-    const received: AgentEvent[] = []
+    const received: TranscriptEvent[] = []
     registry.subscribe(meta.id, (e) => received.push(e))
 
     const session = adapter.sessions[0]!
@@ -56,9 +58,24 @@ describe('SessionRegistry', () => {
     session.emit({ type: 'assistant_delta', text: 'early', raw: {} })
     await eventually(() => expect(registry.get(meta.id)?.resumeToken).toBe('tok-1'))
 
-    const received: AgentEvent[] = []
+    const received: TranscriptEvent[] = []
     registry.subscribe(meta.id, (e) => received.push(e))
     expect(received.map((e) => e.type)).toEqual(['session_started', 'assistant_delta'])
+  })
+
+  it('records user messages and permission responses in the transcript', async () => {
+    const meta = registry.start(startOpts)
+    const received: TranscriptEvent[] = []
+    registry.subscribe(meta.id, (e) => received.push(e))
+
+    registry.send(meta.id, { text: 'more' })
+    registry.respondPermission(meta.id, 'p1', { behavior: 'deny', message: 'no' })
+
+    expect(received).toEqual([
+      { type: 'user_message', text: 'more' },
+      { type: 'permission_response', id: 'p1', decision: { behavior: 'deny', message: 'no' } },
+    ])
+    await eventually(async () => expect(await store.readEvents(meta.id)).toHaveLength(2))
   })
 
   it('routes send/permission/interrupt/kill to the live session', () => {

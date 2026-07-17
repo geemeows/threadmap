@@ -12,7 +12,7 @@ import type {
   StartOptions,
   UserMessage,
 } from '../adapters/index.js'
-import type { SessionMeta } from './transcripts.js'
+import type { SessionMeta, TranscriptEvent } from './transcripts.js'
 import { TranscriptStore } from './transcripts.js'
 
 export interface StartSessionOptions extends StartOptions {
@@ -23,11 +23,11 @@ export interface StartSessionOptions extends StartOptions {
   stage?: string
 }
 
-export type SessionListener = (event: AgentEvent) => void
+export type SessionListener = (event: TranscriptEvent) => void
 
 interface LiveSession {
   meta: SessionMeta
-  buffer: AgentEvent[]
+  buffer: TranscriptEvent[]
   listeners: Set<SessionListener>
   send: (msg: UserMessage) => void
   respondPermission: (id: string, decision: PermissionDecision) => void
@@ -92,11 +92,17 @@ export class SessionRegistry {
   }
 
   send(sessionId: string, msg: UserMessage): void {
-    this.require(sessionId).send(msg)
+    const session = this.require(sessionId)
+    session.send(msg)
+    // The adapter stream never echoes user input — record the human's half
+    // here so re-opened transcripts hold the whole conversation.
+    if ('text' in msg) this.record(session, { type: 'user_message', text: msg.text })
   }
 
   respondPermission(sessionId: string, permissionId: string, decision: PermissionDecision): void {
-    this.require(sessionId).respondPermission(permissionId, decision)
+    const session = this.require(sessionId)
+    session.respondPermission(permissionId, decision)
+    this.record(session, { type: 'permission_response', id: permissionId, decision })
   }
 
   interrupt(sessionId: string): void {
@@ -172,6 +178,12 @@ export class SessionRegistry {
       await this.store.writeMeta(meta).catch(() => {})
       this.live.delete(meta.id)
     }
+  }
+
+  private record(session: LiveSession, event: TranscriptEvent): void {
+    session.buffer.push(event)
+    void this.store.append(session.meta.id, event).catch(() => {})
+    for (const listener of session.listeners) listener(event)
   }
 
   private pickAdapter(name?: string): AgentAdapter {

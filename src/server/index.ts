@@ -18,7 +18,7 @@ export const DEFAULT_PORT = 4664
 export { threadlineHome, transcriptsDir } from './home.js'
 export { listEfforts, type EffortSummary } from './efforts.js'
 export { SessionRegistry, RegistryError, type StartSessionOptions } from './registry.js'
-export { TranscriptStore, type SessionMeta } from './transcripts.js'
+export { TranscriptStore, type SessionMeta, type TranscriptEvent } from './transcripts.js'
 export { createConnection, type ClientMessage, type ServerMessage } from './ws.js'
 export { discoverWorkspace, type RepoInfo, type Workspace } from './workspace.js'
 
@@ -41,6 +41,11 @@ export function createApp(deps: AppDeps) {
     c.json(await listEfforts(workspace.repos, ghExec, {
       includeClosed: c.req.query('state') === 'all',
     })),
+  )
+  // Stage derivation needs a TrackerAdapter (#21); the route exists now so the
+  // UI's pipeline rail has one wire shape to bind to (StageSnapshot).
+  app.get('/api/stage', (c) =>
+    c.json({ error: 'stage derivation lands with the TrackerAdapter (#21)' }, 501),
   )
   app.get('/api/sessions', async (c) => c.json(await registry.list()))
   app.get('/api/sessions/:id', async (c) => {
