@@ -32,8 +32,8 @@ import { cn } from '@/lib/utils'
 import { adhocSessions, effortSessions, sessionLabel, statusOf } from '../lib/derive.js'
 import { store, useStore } from '../lib/store.js'
 import type { SessionView } from '../lib/store.js'
-import { reduceTranscript, summarizeInput, summarizeOutput } from '../lib/transcript.js'
-import type { ChatItem, ToolItem } from '../lib/transcript.js'
+import { pendingApprovals, reduceTranscript, summarizeInput, summarizeOutput } from '../lib/transcript.js'
+import type { ChatItem, QuestionItem, QuestionSpec, ToolItem } from '../lib/transcript.js'
 import { MintPill, StatusBadge, StatusDot } from './particles.js'
 
 export function SessionPane() {
@@ -152,29 +152,54 @@ function Chat({ view }: { view: SessionView }) {
         <MessageScroller className="flex-1">
           <MessageScrollerViewport>
             <MessageScrollerContent className="gap-[13px] px-4 py-[18px]">
-              {items.map((item, i) => (
-                <MessageScrollerItem key={i} scrollAnchor={i === items.length - 1} className="animate-enter-soft">
-                  <ChatMessage item={item} sessionId={meta.id} disconnected={disconnected} />
-                </MessageScrollerItem>
-              ))}
+              {items.map((item, i) => {
+                // A stable per-message identity is what lets the scroller's
+                // stick-to-bottom track which item is which; without it (the
+                // old index-only key left messageId undefined) a fresh
+                // scrollAnchor read as unhandled and yanked the view down while
+                // you were reading history. Tools/approvals carry natural ids;
+                // append-only text items key off their position.
+                const id = itemKey(item, i)
+                return (
+                  <MessageScrollerItem
+                    key={id}
+                    messageId={id}
+                    scrollAnchor={i === items.length - 1}
+                    className="animate-enter-soft"
+                  >
+                    <ChatMessage item={item} sessionId={meta.id} stage={meta.stage} disconnected={disconnected} />
+                  </MessageScrollerItem>
+                )
+              })}
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>
 
+      <PendingApprovalBar sessionId={meta.id} events={view.events} disconnected={disconnected} />
       <Composer view={view} disconnected={disconnected} />
     </div>
   )
 }
 
+/** Stable identity for a transcript row (see the scroller note above). Tools and
+ *  approvals have natural ids; the rest are append-only, so position is stable. */
+function itemKey(item: ChatItem, i: number): string {
+  if (item.kind === 'tool') return `tool-${item.callId}`
+  if (item.kind === 'approval') return `approval-${item.id}`
+  return `${item.kind}-${i}`
+}
+
 function ChatMessage({
   item,
   sessionId,
+  stage,
   disconnected,
 }: {
   item: ChatItem
   sessionId: string
+  stage?: string
   disconnected: boolean
 }) {
   switch (item.kind) {
@@ -196,6 +221,8 @@ function ChatMessage({
       )
     case 'tool':
       return <ToolCall item={item} />
+    case 'question':
+      return <QuestionCard item={item} sessionId={sessionId} stage={stage} disconnected={disconnected} />
     case 'system':
       return <div className="self-center font-mono text-[11px] text-[var(--fg3)]">{item.text}</div>
     case 'approval':
@@ -255,6 +282,135 @@ function formatValue(value: unknown): string {
   } catch {
     return String(value)
   }
+}
+
+/** Interactive AskUserQuestion card (#82 follow-up): renders the agent's
+ *  clarifying questions as selectable options and routes the choice back as the
+ *  tool_result so the planning session continues. Interactive only in a planning
+ *  session while unanswered; otherwise it shows the recorded answers read-only. */
+function QuestionCard({
+  item,
+  sessionId,
+  stage,
+  disconnected,
+}: {
+  item: QuestionItem
+  sessionId: string
+  stage?: string
+  disconnected: boolean
+}) {
+  const interactive = stage === 'planning' && !item.answered
+  const [selected, setSelected] = useState<Record<string, string[]>>({})
+
+  const toggle = (q: QuestionSpec, label: string) => {
+    setSelected((prev) => {
+      const cur = prev[q.question] ?? []
+      if (q.multiSelect) {
+        return { ...prev, [q.question]: cur.includes(label) ? cur.filter((l) => l !== label) : [...cur, label] }
+      }
+      return { ...prev, [q.question]: cur[0] === label ? [] : [label] }
+    })
+  }
+
+  const allAnswered =
+    item.questions.length > 0 && item.questions.every((q) => (selected[q.question]?.length ?? 0) > 0)
+
+  const submit = () => {
+    const answers: Record<string, string | string[]> = {}
+    for (const q of item.questions) {
+      const picks = selected[q.question] ?? []
+      answers[q.question] = q.multiSelect ? picks : (picks[0] ?? '')
+    }
+    store.answerQuestion(sessionId, item.callId, item.questions, answers)
+  }
+
+  return (
+    <div className="flex max-w-[90%] gap-2.5">
+      <AgentAvatar />
+      <div className="min-w-0 flex-1 rounded-xl border border-[color:var(--mint-line)] bg-[color:color-mix(in_srgb,var(--mint)_5%,var(--surface))] px-[15px] py-[13px]">
+        <div className="mb-2.5 text-[11px] font-semibold tracking-wide text-primary uppercase">
+          {item.answered ? 'Answered' : 'Needs your input'}
+        </div>
+        <div className="flex flex-col gap-3.5">
+          {item.questions.map((q) => (
+            <div key={q.question}>
+              <div className="mb-0.5 flex items-center gap-2">
+                {q.header && (
+                  <span className="rounded-full border border-[var(--mint-line)] bg-[var(--mint-tint)] px-1.5 py-px font-mono text-[10px] text-primary">
+                    {q.header}
+                  </span>
+                )}
+                <span className="text-[13px] font-medium text-foreground">{q.question}</span>
+              </div>
+              <div className="mt-1.5 flex flex-col gap-1.5">
+                {q.options.map((opt) => {
+                  const on = item.answered
+                    ? answerHas(item.answers?.[q.question], opt.label)
+                    : (selected[q.question] ?? []).includes(opt.label)
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      disabled={!interactive || disconnected}
+                      onClick={() => toggle(q, opt.label)}
+                      className={cn(
+                        'flex items-start gap-2.5 rounded-[10px] border px-3 py-2 text-left transition-colors',
+                        on
+                          ? 'border-primary bg-[color:color-mix(in_srgb,var(--mint)_10%,var(--surface))]'
+                          : 'border-border bg-[var(--surface)]',
+                        interactive ? 'cursor-pointer hover:border-[var(--mint-line)]' : 'cursor-default',
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'mt-px flex size-[15px] shrink-0 items-center justify-center border-[1.5px]',
+                          q.multiSelect ? 'rounded-[4px]' : 'rounded-full',
+                          on ? 'border-primary bg-primary text-primary-foreground' : 'border-[var(--border2)]',
+                        )}
+                      >
+                        {on && <span className="text-[9px] leading-none">✓</span>}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[12.5px] font-medium text-foreground">{opt.label}</span>
+                        {opt.description && (
+                          <span className="block text-[11.5px] text-[var(--fg3)]">{opt.description}</span>
+                        )}
+                      </span>
+                    </button>
+                  )
+                })}
+                {q.options.length === 0 && (
+                  <span className="text-[11.5px] text-[var(--fg3)]">No options provided.</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {interactive ? (
+          <div className="mt-3 flex items-center gap-2.5">
+            <Button size="sm" disabled={!allAnswered || disconnected} onClick={submit}>
+              Send answer
+            </Button>
+            {disconnected && <span className="text-xs text-muted-foreground">Disconnected — reconnecting…</span>}
+          </div>
+        ) : (
+          !item.answered && (
+            <div className="mt-2.5 text-[11.5px] text-[var(--fg3)]">
+              Answerable inline only in a planning session.
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Does a recorded answer (string or array, tolerating comma-joined multi) include a label? */
+function answerHas(answer: string | string[] | undefined, label: string): boolean {
+  if (Array.isArray(answer)) return answer.includes(label)
+  if (typeof answer === 'string') return answer.split(',').map((s) => s.trim()).includes(label)
+  return false
 }
 
 /** Inline approval-card particle (#8's canonical surface), restyled to the
@@ -317,6 +473,63 @@ function ApprovalCard({
           {disconnected && <span className="text-xs text-muted-foreground">Disconnected — reconnecting…</span>}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Sticky approval bar (#82 follow-up): the inline card is easy to lose in a
+ *  long transcript, so the oldest unresolved approval is also pinned right above
+ *  the composer where it's always reachable. Acts on the oldest pending request;
+ *  a trailing count shows how many more are queued behind it. */
+function PendingApprovalBar({
+  sessionId,
+  events,
+  disconnected,
+}: {
+  sessionId: string
+  events: SessionView['events']
+  disconnected: boolean
+}) {
+  const pending = pendingApprovals(events)
+  if (pending.length === 0) return null
+  const [current, ...rest] = pending
+  if (!current) return null
+  return (
+    <div className="shrink-0 border-t border-[color:color-mix(in_srgb,var(--warning)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,var(--surface))] px-4 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <span aria-hidden className="tl-pulse size-[7px] shrink-0 rounded-full bg-warning" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-warning">
+            Approval required — {current.tool}
+            {rest.length > 0 && (
+              <span className="rounded-full bg-warning/15 px-1.5 py-px text-[10.5px] font-medium text-warning">
+                +{rest.length} more
+              </span>
+            )}
+          </div>
+          {summarizeInput(current.input) && (
+            <div className="truncate font-mono text-[11px] text-[var(--fg3)]">{summarizeInput(current.input)}</div>
+          )}
+        </div>
+        <Button
+          size="sm"
+          disabled={disconnected}
+          onClick={() => store.respondPermission(sessionId, current.id, { behavior: 'allow' })}
+        >
+          Approve &amp; run
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={disconnected}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() =>
+            store.respondPermission(sessionId, current.id, { behavior: 'deny', message: 'denied from threadmap UI' })
+          }
+        >
+          Deny
+        </Button>
+      </div>
     </div>
   )
 }

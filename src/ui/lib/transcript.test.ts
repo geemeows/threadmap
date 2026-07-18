@@ -47,6 +47,63 @@ describe('reduceTranscript', () => {
     ])
   })
 
+  it('surfaces AskUserQuestion as an interactive question item, not a raw tool row', () => {
+    const events: TranscriptEvent[] = [
+      {
+        type: 'tool_call',
+        name: 'AskUserQuestion',
+        callId: 'q1',
+        input: {
+          questions: [
+            {
+              question: 'Which tracker?',
+              header: 'Tracker',
+              options: [
+                { label: 'GitHub', description: 'gh issues' },
+                { label: 'Linear', description: 'linear teams' },
+              ],
+              multiSelect: false,
+            },
+          ],
+        },
+        raw: {},
+      },
+    ]
+    expect(reduceTranscript(meta, events).slice(1)).toEqual([
+      {
+        kind: 'question',
+        callId: 'q1',
+        answered: false,
+        questions: [
+          {
+            question: 'Which tracker?',
+            header: 'Tracker',
+            options: [
+              { label: 'GitHub', description: 'gh issues' },
+              { label: 'Linear', description: 'linear teams' },
+            ],
+            multiSelect: false,
+          },
+        ],
+      },
+    ])
+  })
+
+  it('marks a question answered when its tool_result lands', () => {
+    const events: TranscriptEvent[] = [
+      {
+        type: 'tool_call',
+        name: 'AskUserQuestion',
+        callId: 'q2',
+        input: { questions: [{ question: 'Which tracker?', options: [{ label: 'GitHub' }], multiSelect: false }] },
+        raw: {},
+      },
+      { type: 'tool_result', callId: 'q2', output: { answers: { 'Which tracker?': 'GitHub' } }, isError: false, raw: null },
+    ]
+    const item = reduceTranscript(meta, events)[1]
+    expect(item).toMatchObject({ kind: 'question', answered: true, answers: { 'Which tracker?': 'GitHub' } })
+  })
+
   it('marks approvals resolved by their permission_response', () => {
     const events: TranscriptEvent[] = [
       { type: 'permission_request', id: 'p1', tool: 'Bash', input: { command: 'rm x' }, raw: {} },
@@ -91,6 +148,19 @@ describe('sessionStatus', () => {
     ]
     expect(sessionStatus(meta, events)).toBe('running')
     expect(sessionStatus({ ...meta, status: 'ended' }, events)).toBe('done')
+  })
+
+  it('stops on the human (needs-approval) while an AskUserQuestion is unanswered', () => {
+    const asked: TranscriptEvent[] = [
+      { type: 'tool_call', name: 'AskUserQuestion', input: { questions: [] }, callId: 'q1', raw: {} },
+    ]
+    expect(sessionStatus(meta, asked)).toBe('needs-approval')
+    // ...and resumes running once its answer (tool_result) lands.
+    const answered: TranscriptEvent[] = [
+      ...asked,
+      { type: 'tool_result', callId: 'q1', output: { answers: {} }, isError: false, raw: null },
+    ]
+    expect(sessionStatus(meta, answered)).toBe('running')
   })
 })
 

@@ -269,6 +269,16 @@ export class Store {
     this.sendWs({ type: 'permission', sessionId, id, decision })
   }
 
+  /** Route an AskUserQuestion selection back to the agent as its tool_result. */
+  answerQuestion(
+    sessionId: string,
+    callId: string,
+    questions: unknown[],
+    answers: Record<string, string | string[]>,
+  ) {
+    this.sendWs({ type: 'answer_question', sessionId, callId, questions, answers })
+  }
+
   interrupt(sessionId: string) {
     this.sendWs({ type: 'interrupt', sessionId })
   }

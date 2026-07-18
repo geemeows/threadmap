@@ -105,6 +105,24 @@ export class SessionRegistry {
     this.record(session, { type: 'permission_response', id: permissionId, decision })
   }
 
+  /**
+   * Answer an AskUserQuestion tool call. The CLI surfaces it as a normal
+   * tool_use, so the answer goes back as a tool_result user-message block
+   * (Claude Code's documented contract: `{questions, answers}`). The adapter
+   * stream won't echo it, so we also record the tool_result ourselves — that's
+   * what marks the question answered in a re-opened transcript.
+   */
+  answerQuestion(
+    sessionId: string,
+    callId: string,
+    questions: unknown[],
+    answers: Record<string, string | string[]>,
+  ): void {
+    const session = this.require(sessionId)
+    session.send({ content: [{ type: 'tool_result', tool_use_id: callId, content: { questions, answers } }] })
+    this.record(session, { type: 'tool_result', callId, output: { answers }, isError: false, raw: null })
+  }
+
   interrupt(sessionId: string): void {
     this.require(sessionId).interrupt()
   }

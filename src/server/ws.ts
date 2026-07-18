@@ -14,6 +14,13 @@ export type ClientMessage =
   | { type: 'detach'; sessionId: string }
   | { type: 'send'; sessionId: string; text: string }
   | { type: 'permission'; sessionId: string; id: string; decision: PermissionDecision }
+  | {
+      type: 'answer_question'
+      sessionId: string
+      callId: string
+      questions: unknown[]
+      answers: Record<string, string | string[]>
+    }
   | { type: 'interrupt'; sessionId: string }
   | { type: 'kill'; sessionId: string }
 
@@ -77,6 +84,9 @@ export function createConnection(
             break
           case 'permission':
             registry.respondPermission(msg.sessionId, msg.id, msg.decision)
+            break
+          case 'answer_question':
+            registry.answerQuestion(msg.sessionId, msg.callId, msg.questions, msg.answers)
             break
           case 'interrupt':
             registry.interrupt(msg.sessionId)
