@@ -24,7 +24,7 @@ export function Inbox() {
   return (
     <OverlayShell
       open={state.inboxOpen}
-      onOpenChange={store.setInboxOpen}
+      onOpenChange={(open) => store.setInboxOpen(open)}
       title="Needs you"
       description="Sessions and notices waiting on your input, workspace-wide."
       width={540}

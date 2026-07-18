@@ -56,7 +56,7 @@ export function NewSessionDialog() {
   return (
     <OverlayShell
       open={state.newSessionOpen}
-      onOpenChange={store.setNewSessionOpen}
+      onOpenChange={(open) => store.setNewSessionOpen(open)}
       title="New session"
       description="Runs a Claude Code session in the chosen repo — it docks in the chat pane on the right."
       width={520}
