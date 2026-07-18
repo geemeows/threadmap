@@ -29,7 +29,7 @@ function fakeExec(routes: Record<string, string | Error | ((args: string[]) => s
 describe('worktreePath', () => {
   it('keys worktrees by repo name and ticket ref slug (#11)', () => {
     expect(worktreePath('/ws', 'web', { id: 'acme/web#42', display: 'acme/web#42', url: '' })).toBe(
-      '/ws/.threadline/worktrees/web/acme-web-42',
+      '/ws/.threadmap/worktrees/web/acme-web-42',
     )
   })
 })
@@ -70,18 +70,18 @@ describe('ensureTrunk', () => {
 describe('worktrees', () => {
   it('addWorktree fetches the trunk and adds a detached worktree at its head', async () => {
     const { exec, calls } = fakeExec({})
-    await addWorktree('/repo', '/ws/.threadline/worktrees/web/acme-web-42', 'tm/effort/1', exec)
+    await addWorktree('/repo', '/ws/.threadmap/worktrees/web/acme-web-42', 'tm/effort/1', exec)
     expect(calls).toEqual([
       'git fetch origin tm/effort/1',
-      'git worktree add --detach /ws/.threadline/worktrees/web/acme-web-42 origin/tm/effort/1',
+      'git worktree add --detach /ws/.threadmap/worktrees/web/acme-web-42 origin/tm/effort/1',
     ])
   })
 
   it('listWorktrees parses porcelain output', async () => {
     const { exec } = fakeExec({
-      'worktree list': 'worktree /repo\nHEAD abc\n\nworktree /ws/.threadline/worktrees/web/x\nHEAD def\n',
+      'worktree list': 'worktree /repo\nHEAD abc\n\nworktree /ws/.threadmap/worktrees/web/x\nHEAD def\n',
     })
-    expect(await listWorktrees('/repo', exec)).toEqual(['/repo', '/ws/.threadline/worktrees/web/x'])
+    expect(await listWorktrees('/repo', exec)).toEqual(['/repo', '/ws/.threadmap/worktrees/web/x'])
   })
 
   it('isWorktreeClean requires empty status and zero unpushed commits', async () => {

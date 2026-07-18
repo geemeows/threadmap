@@ -4,7 +4,7 @@
 // hasn't ad-hoc created the label first. `gh label create --force` updates
 // an existing label in place, so re-running is idempotent (#7 §8).
 
-import { VOCABULARY_LABELS, THREADLINE_PREFIX, WAYFINDER_PREFIX } from '../tracker/labels.js'
+import { VOCABULARY_LABELS, THREADMAP_PREFIX, WAYFINDER_PREFIX } from '../tracker/labels.js'
 import type { Exec } from './exec.js'
 
 export interface GitHubProvisionResult {
@@ -13,9 +13,9 @@ export interface GitHubProvisionResult {
   detail: string
 }
 
-const OVERRIDE_PREFIX = `${THREADLINE_PREFIX}override:`
+const OVERRIDE_PREFIX = `${THREADMAP_PREFIX}override:`
 
-/** wayfinder = purple, overrides = alarm orange, other threadline = green. */
+/** wayfinder = purple, overrides = alarm orange, other threadmap = green. */
 export function labelColor(label: string): string {
   if (label.startsWith(WAYFINDER_PREFIX)) return '5319E7'
   if (label.startsWith(OVERRIDE_PREFIX)) return 'D93F0B'
@@ -37,7 +37,7 @@ export async function provisionGitHub(
         for (const label of VOCABULARY_LABELS) {
           await exec(
             'gh',
-            ['label', 'create', label, '--force', '--color', labelColor(label), '--description', 'threadline-managed'],
+            ['label', 'create', label, '--force', '--color', labelColor(label), '--description', 'threadmap-managed'],
             repo.path,
           )
         }

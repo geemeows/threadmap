@@ -29,7 +29,7 @@ const startOpts = {
   cwd: '/repo',
   prompt: '/grilling go',
   permissionPolicy: { mode: 'default' as const, intercept: true },
-  effort: 'geemeows/threadline#1',
+  effort: 'geemeows/threadmap#1',
   stage: 'planning',
 }
 
@@ -37,7 +37,7 @@ describe('SessionRegistry', () => {
   it('starts a session and fans events out to subscribers and the transcript', async () => {
     const meta = registry.start(startOpts)
     expect(meta.status).toBe('running')
-    expect(meta.effort).toBe('geemeows/threadline#1')
+    expect(meta.effort).toBe('geemeows/threadmap#1')
 
     const received: TranscriptEvent[] = []
     registry.subscribe(meta.id, (e) => received.push(e))
@@ -125,7 +125,7 @@ describe('SessionRegistry', () => {
     const resumed = await registry.resume(meta.id, 'continue')
     expect(adapter.resumed).toEqual([{ token: 'tok-1', opts: expect.anything() }])
     expect(resumed.id).not.toBe(meta.id)
-    expect(resumed.effort).toBe('geemeows/threadline#1')
+    expect(resumed.effort).toBe('geemeows/threadmap#1')
     expect(resumed.stage).toBe('planning')
   })
 

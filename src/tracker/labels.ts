@@ -4,19 +4,19 @@
 // so both trackers spell the vocabulary identically and the fallback is dead.
 //
 // Logical names arrive namespace-free ('ticket', 'spec', 'ticketed',
-// 'override:<stage>') and are spelled `threadline:<name>`; `wayfinder:*`
+// 'override:<stage>') and are spelled `threadmap:<name>`; `wayfinder:*`
 // names arrive already namespaced and pass through literally.
 
-export const THREADLINE_PREFIX = 'threadline:'
+export const THREADMAP_PREFIX = 'threadmap:'
 export const WAYFINDER_PREFIX = 'wayfinder:'
 
 export function spellLabel(logical: string): string {
-  return logical.startsWith(WAYFINDER_PREFIX) ? logical : `${THREADLINE_PREFIX}${logical}`
+  return logical.startsWith(WAYFINDER_PREFIX) ? logical : `${THREADMAP_PREFIX}${logical}`
 }
 
 /** Inverse of spellLabel; null for labels outside the vocabulary. */
 export function logicalName(spelled: string): string | null {
-  if (spelled.startsWith(THREADLINE_PREFIX)) return spelled.slice(THREADLINE_PREFIX.length)
+  if (spelled.startsWith(THREADMAP_PREFIX)) return spelled.slice(THREADMAP_PREFIX.length)
   if (spelled.startsWith(WAYFINDER_PREFIX)) return spelled
   return null
 }
@@ -25,7 +25,7 @@ export const TICKET_LABEL = spellLabel('ticket')
 export const SPEC_LABEL = spellLabel('spec')
 
 /**
- * The full label vocabulary threadline stamps and queries (flat, colon-safe).
+ * The full label vocabulary threadmap stamps and queries (flat, colon-safe).
  * Provisioned into every Linear workspace (#20/#21) and every confirmed
  * GitHub repo (#43) during setup.
  */
@@ -35,14 +35,14 @@ export const VOCABULARY_LABELS = [
   'wayfinder:prototype',
   'wayfinder:grilling',
   'wayfinder:task',
-  'threadline:ticket',
-  'threadline:spec',
-  'threadline:ticketed',
-  'threadline:override:planning',
-  'threadline:override:to-spec',
-  'threadline:override:to-tickets',
-  'threadline:override:implement',
-  'threadline:override:code-review',
+  'threadmap:ticket',
+  'threadmap:spec',
+  'threadmap:ticketed',
+  'threadmap:override:planning',
+  'threadmap:override:to-spec',
+  'threadmap:override:to-tickets',
+  'threadmap:override:implement',
+  'threadmap:override:code-review',
 ]
 
 /** True when `spelled` falls in the given namespace filter. */

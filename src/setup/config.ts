@@ -1,7 +1,7 @@
-// `.threadline/config.json` — the one durable per-workspace setup artifact
+// `.threadmap/config.json` — the one durable per-workspace setup artifact
 // (#21's shape, extended). The wizard owns writing it; the stage service and
 // tracker MCP only ever read it. Everything else setup produces lives either
-// in the tracker, in per-repo docs, or under ~/.threadline (ephemeral).
+// in the tracker, in per-repo docs, or under ~/.threadmap (ephemeral).
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -18,7 +18,7 @@ export interface WorkspaceConfig {
 }
 
 export function configPath(root: string): string {
-  return join(root, '.threadline', 'config.json')
+  return join(root, '.threadmap', 'config.json')
 }
 
 export async function readConfig(root: string): Promise<WorkspaceConfig | null> {

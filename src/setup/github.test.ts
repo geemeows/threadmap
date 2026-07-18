@@ -5,8 +5,8 @@ import { labelColor, provisionGitHub } from './github.js'
 describe('labelColor', () => {
   it('maps namespaces to fixed colors', () => {
     expect(labelColor('wayfinder:map')).toBe('5319E7')
-    expect(labelColor('threadline:override:implement')).toBe('D93F0B')
-    expect(labelColor('threadline:ticket')).toBe('0E8A16')
+    expect(labelColor('threadmap:override:implement')).toBe('D93F0B')
+    expect(labelColor('threadmap:ticket')).toBe('0E8A16')
   })
 })
 

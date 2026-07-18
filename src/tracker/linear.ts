@@ -5,7 +5,7 @@
 //     `hasBlockedByRelations: {eq: false}` IS the unblocked predicate
 //   - "closed" is a per-team stateId resolved from the issue's own team, in
 //     two flavors: completed (done) vs canceled (wontfix)
-//   - labels keep the literal `threadline:*`/`wayfinder:*` spelling (colons
+//   - labels keep the literal `threadmap:*`/`wayfinder:*` spelling (colons
 //     are API-safe) as workspace-level flat labels, API-created
 //   - approval: completed ⇒ 'approved'. Setup disables team auto-close
 //     automations (#20 §10.4), so no synchronous actor check — the laggy

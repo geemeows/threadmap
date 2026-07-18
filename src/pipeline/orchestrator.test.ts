@@ -12,8 +12,8 @@ const TICKET: TicketRef = {
   display: 'acme/web#42',
   url: 'https://github.com/acme/web/issues/42',
 }
-const WT = '/ws/.threadline/worktrees/web/acme-web-42'
-const LAND_WT = '/ws/.threadline/worktrees/web/land-acme-home-1'
+const WT = '/ws/.threadmap/worktrees/web/acme-web-42'
+const LAND_WT = '/ws/.threadmap/worktrees/web/land-acme-home-1'
 
 function fakeExec(routes: Record<string, string | Error | ((joined: string) => string)>) {
   const calls: string[] = []

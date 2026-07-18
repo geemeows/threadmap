@@ -27,7 +27,7 @@ export function defaultSkillsPaths(home = homedir()): SkillsPaths {
   return {
     canonicalDir: join(home, '.agents', 'skills'),
     agentDirs: { 'claude-code': join(home, '.claude', 'skills') },
-    markerPath: join(home, '.threadline', 'skills.json'),
+    markerPath: join(home, '.threadmap', 'skills.json'),
   }
 }
 

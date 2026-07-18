@@ -25,12 +25,12 @@ const ghExec: GhExec = async (args) => {
 }
 
 describe('loadTrackerConfig', () => {
-  it('defaults to github without config, reads .threadline/config.json when present', async () => {
+  it('defaults to github without config, reads .threadmap/config.json when present', async () => {
     const root = await mkdtemp(join(tmpdir(), 'tl-ws-'))
     expect(await loadTrackerConfig(root)).toEqual({ tracker: 'github' })
-    await mkdir(join(root, '.threadline'))
+    await mkdir(join(root, '.threadmap'))
     await writeFile(
-      join(root, '.threadline', 'config.json'),
+      join(root, '.threadmap', 'config.json'),
       JSON.stringify({ tracker: 'linear', linear: { orgId: 'org-1', repoTeams: { web: 'team-1' } } }),
     )
     expect(await loadTrackerConfig(root)).toEqual({

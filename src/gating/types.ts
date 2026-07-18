@@ -14,7 +14,7 @@ export interface GateInputs {
   spec: SpecStatus
   /** Logical stamp names on the map issue. */
   stamps: string[]
-  /** Every `threadline:ticket` child, open and closed. */
+  /** Every `threadmap:ticket` child, open and closed. */
   tickets: TicketView[]
 }
 

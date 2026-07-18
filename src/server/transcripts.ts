@@ -1,4 +1,4 @@
-// Persistent, re-openable transcripts under ~/.threadline/transcripts.
+// Persistent, re-openable transcripts under ~/.threadmap/transcripts.
 // One JSONL file of normalized AgentEvents (raw CLI JSON attached) plus one
 // metadata sidecar per session. Ephemeral by design — losing this directory
 // loses chat history, never pipeline state (ADR-0001).

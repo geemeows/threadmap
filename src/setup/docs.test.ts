@@ -34,7 +34,7 @@ describe('planDocs', () => {
     expect(plan.map((e) => e.action)).toEqual(['create', 'create'])
     expect(plan[0]?.proposed).toContain('gh issue create')
     const linear = await planDocs('linear', repo)
-    expect(linear[0]?.proposed).toContain('threadline-tracker')
+    expect(linear[0]?.proposed).toContain('threadmap-tracker')
     expect(linear[0]?.proposed).toContain('resolve_issue')
   })
 

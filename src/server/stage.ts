@@ -1,6 +1,6 @@
 // Stage service — binds the gating engine (#14) to a workspace's tracker so
 // `GET /api/stage` can answer with a StageSnapshot (#16's wire shape). The
-// tracker choice and Linear team routing live in `.threadline/config.json` at
+// tracker choice and Linear team routing live in `.threadmap/config.json` at
 // the workspace root (#19 §9); absent config means GitHub.
 
 import { readFile } from 'node:fs/promises'
@@ -34,7 +34,7 @@ export interface TrackerConfig {
 }
 
 export async function loadTrackerConfig(root: string): Promise<TrackerConfig> {
-  const raw = await readFile(join(root, '.threadline', 'config.json'), 'utf8').catch(() => null)
+  const raw = await readFile(join(root, '.threadmap', 'config.json'), 'utf8').catch(() => null)
   if (raw === null) return { tracker: 'github' }
   const parsed = JSON.parse(raw) as Partial<TrackerConfig>
   return { tracker: parsed.tracker === 'linear' ? 'linear' : 'github', ...(parsed.linear ? { linear: parsed.linear } : {}) }

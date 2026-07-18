@@ -1,10 +1,10 @@
-# threadline
+# threadmap
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues are tracked in GitHub Issues (`geemeows/threadline`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues are tracked in GitHub Issues (`geemeows/threadmap`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

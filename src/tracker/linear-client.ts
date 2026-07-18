@@ -83,13 +83,13 @@ interface CredentialsFile {
 
 /**
  * Resolve the Linear API key: `LINEAR_API_KEY` env override, else
- * `~/.threadline/credentials.json` → `linear.<workspace-org-uuid>.apiKey`
+ * `~/.threadmap/credentials.json` → `linear.<workspace-org-uuid>.apiKey`
  * (#19 §9). Without an orgId, a lone configured workspace wins.
  */
 export async function resolveLinearApiKey(
   orgId?: string,
   env: NodeJS.ProcessEnv = process.env,
-  credentialsPath = join(homedir(), '.threadline', 'credentials.json'),
+  credentialsPath = join(homedir(), '.threadmap', 'credentials.json'),
 ): Promise<string> {
   if (env.LINEAR_API_KEY) return env.LINEAR_API_KEY
   const raw = await readFile(credentialsPath, 'utf8').catch(() => null)

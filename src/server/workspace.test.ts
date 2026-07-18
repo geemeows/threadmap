@@ -40,7 +40,7 @@ describe('discoverWorkspace', () => {
     const root = await makeWorkspace()
     await mkdir(join(root, 'wt'))
     await writeFile(join(root, 'wt', '.git'), 'gitdir: elsewhere\n')
-    await mkdir(join(root, '.threadline', '.git'), { recursive: true })
+    await mkdir(join(root, '.threadmap', '.git'), { recursive: true })
 
     const ws = await discoverWorkspace(root)
     expect(ws.repos.map((r) => r.name)).toEqual(['wt'])

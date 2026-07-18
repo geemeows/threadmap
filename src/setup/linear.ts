@@ -1,6 +1,6 @@
 // Linear side of setup (#7 §3–4, #20, #21): validate a pasted API key against
-// `viewer`, store it 0600 in ~/.threadline/credentials.json, list/create teams
-// for the repo↔team default mapping, and provision threadline-managed teams —
+// `viewer`, store it 0600 in ~/.threadmap/credentials.json, list/create teams
+// for the repo↔team default mapping, and provision threadmap-managed teams —
 // vocabulary labels created via API (UI creation group-splits on `:`, §10.1)
 // and auto-close automations disabled (the approval gate trusts
 // completed ⇒ approved on exactly that basis, #20 §10.4).
@@ -39,7 +39,7 @@ export async function validateLinearKey(client: LinearClient): Promise<LinearOrg
 }
 
 export function credentialsPath(home = homedir()): string {
-  return join(home, '.threadline', 'credentials.json')
+  return join(home, '.threadmap', 'credentials.json')
 }
 
 /** Merge the key under `linear.<orgId>.apiKey`, file mode 0600 (#7 §3). */
@@ -72,7 +72,7 @@ export async function createTeam(client: LinearClient, name: string, key?: strin
 }
 
 /**
- * Provision threadline-managed teams: workspace-level vocabulary labels plus
+ * Provision threadmap-managed teams: workspace-level vocabulary labels plus
  * `autoCloseParentIssues`/`autoCloseChildIssues` off per team (one teamUpdate
  * each). Idempotent — existing labels are found, teamUpdate re-applies.
  */

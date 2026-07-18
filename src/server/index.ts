@@ -20,7 +20,7 @@ import { discoverWorkspace, type Workspace } from './workspace.js'
 
 export const DEFAULT_PORT = 4664
 
-export { threadlineHome, transcriptsDir } from './home.js'
+export { threadmapHome, transcriptsDir } from './home.js'
 export { listEfforts, type EffortSummary } from './efforts.js'
 export { SessionRegistry, RegistryError, type StartSessionOptions } from './registry.js'
 export { TranscriptStore, type SessionMeta, type TranscriptEvent } from './transcripts.js'

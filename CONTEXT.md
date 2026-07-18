@@ -1,4 +1,4 @@
-# Threadline
+# Threadmap
 
 Orchestrates the Matt Pocock SDLC pipeline (planning → to-spec → to-tickets → implement → code-review) over headless agent sessions, against GitHub Issues, across multiple repos in one workspace.
 
@@ -7,7 +7,7 @@ Orchestrates the Matt Pocock SDLC pipeline (planning → to-spec → to-tickets 
 ### Structure
 
 **Workspace**:
-The directory `threadline` runs in. Its Repos are auto-discovered: direct child directories containing a git clone, plus the root itself when it is one (the single-repo case).
+The directory `threadmap` runs in. Its Repos are auto-discovered: direct child directories containing a git clone, plus the root itself when it is one (the single-repo case).
 _Avoid_: project, monorepo
 
 **Repo**:
@@ -28,7 +28,7 @@ A GitHub issue that is a sub-issue of an Effort's map issue, owned by whichever 
 _Avoid_: task, issue (bare)
 
 **Spec**:
-The Effort's per-effort contract: one `threadline:spec`-labelled sub-issue of the map issue in the home repo. Closing it is the human approval. Deliberately disposable — durable knowledge graduates to CONTEXT.md and ADRs, never lives in a Spec.
+The Effort's per-effort contract: one `threadmap:spec`-labelled sub-issue of the map issue in the home repo. Closing it is the human approval. Deliberately disposable — durable knowledge graduates to CONTEXT.md and ADRs, never lives in a Spec.
 _Avoid_: PRD, design doc
 
 ### Pipeline
@@ -44,7 +44,7 @@ _Avoid_: phase, step
 The verifiable exit condition of a Stage, derived from tracker and git artifacts. Hard: the next Stage unlocks only when the gate's condition is met, or an Override is recorded.
 
 **Override**:
-An explicit, recorded "I know what I'm doing" that makes one Stage's Gate count as passed without its condition being met: a `threadline:override:<stage>` label on the map issue plus a structured audit comment (who, when, unmet condition, reason). Revoked by removing the label.
+An explicit, recorded "I know what I'm doing" that makes one Stage's Gate count as passed without its condition being met: a `threadmap:override:<stage>` label on the map issue plus a structured audit comment (who, when, unmet condition, reason). Revoked by removing the label.
 
 **Completion**:
 The end of an Effort: the user closes the map issue via a UI prompt once code-review's Gate passes. Never automatic — no machine event silently finishes an Effort.

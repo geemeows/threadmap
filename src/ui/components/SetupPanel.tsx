@@ -13,13 +13,13 @@ const DOC_AGENT_PROMPT = [
   'Run /setup-matt-pocock-skills for this repository.',
   'Seed CONTEXT.md at the repo root, docs/agents/glossary.md, and docs/agents/coding-standards.md',
   'from what the codebase actually contains. Do not overwrite docs/agents/issue-tracker.md',
-  'or docs/adr/template.md — threadline stamps those from templates.',
-  'Commit the new docs with the message "docs: threadline setup — agent docs" and push to origin.',
+  'or docs/adr/template.md — threadmap stamps those from templates.',
+  'Commit the new docs with the message "docs: threadmap setup — agent docs" and push to origin.',
   'If the push is rejected (branch protection), move the commit onto a branch and open a PR instead.',
 ].join(' ')
 
 const SKILLS_AGENT_PROMPT = [
-  'The threadline skills install failed. Install the official mattpocock/skills at the pinned',
+  'The threadmap skills install failed. Install the official mattpocock/skills at the pinned',
   'version with `npx skills add "mattpocock/skills#<pin>" --global`, then make sure every skill',
   'in ~/.agents/skills is linked (or copied) into ~/.claude/skills. Diagnose whatever is failing',
   '(npx availability, permissions, symlink support) and fix it.',
@@ -295,7 +295,7 @@ function LabelsSection({ setup }: { setup: SetupStatus }) {
   return (
     <Section title="Labels" ok={allOk}>
       <div className="mb-2">
-        Stamp the threadline label vocabulary into each confirmed repo — sessions fail to create
+        Stamp the threadmap label vocabulary into each confirmed repo — sessions fail to create
         labelled issues without it.
       </div>
       <div className="flex items-center gap-2">
@@ -303,7 +303,7 @@ function LabelsSection({ setup }: { setup: SetupStatus }) {
           className="btn primary sm"
           disabled={busy || setup.repos.length === 0 || !setup.auth.ok}
           onClick={() => void provision()}
-          title="gh label create the wayfinder:*/threadline:* vocabulary in every confirmed repo"
+          title="gh label create the wayfinder:*/threadmap:* vocabulary in every confirmed repo"
         >
           {busy ? 'stamping…' : allOk ? '✓ Provisioned' : 'Provision labels'}
         </button>

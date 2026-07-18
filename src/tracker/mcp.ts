@@ -1,4 +1,4 @@
-// threadline-tracker MCP server (#19 §7): the one write path agent sessions
+// threadmap-tracker MCP server (#19 §7): the one write path agent sessions
 // get in Linear workspaces, injected via `StartOptions.mcpConfig` and backed
 // by the same LinearAdapter the gating engine uses — so gate semantics
 // (approved-close, stamp spelling, blocking direction) hold no matter who
@@ -24,7 +24,7 @@ export interface TrackerMcpDeps {
 }
 
 export function createTrackerMcpServer({ adapter, client }: TrackerMcpDeps): McpServer {
-  const server = new McpServer({ name: 'threadline-tracker', version: '0.1.0' })
+  const server = new McpServer({ name: 'threadmap-tracker', version: '0.1.0' })
 
   server.registerTool(
     'view_issue',
@@ -53,7 +53,7 @@ export function createTrackerMcpServer({ adapter, client }: TrackerMcpDeps): Mcp
     'list_children',
     {
       description:
-        'List child issues of an effort (map issue), open and closed, with state. Optional namespace filter: "wayfinder" (planning children) or "ticket" (threadline:ticket children).',
+        'List child issues of an effort (map issue), open and closed, with state. Optional namespace filter: "wayfinder" (planning children) or "ticket" (threadmap:ticket children).',
       inputSchema: {
         effortId: z.string(),
         namespace: z.enum(['wayfinder', 'ticket']).optional(),

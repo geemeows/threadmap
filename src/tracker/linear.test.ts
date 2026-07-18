@@ -78,7 +78,7 @@ describe('LinearAdapter reads', () => {
     await adapter.openChildren(MAP, 'wayfinder')
     await adapter.openChildren(MAP, 'ticket')
     expect(calls[0]?.variables?.filter).toMatchObject({ labels: { name: { startsWith: 'wayfinder:' } } })
-    expect(calls[1]?.variables?.filter).toMatchObject({ labels: { name: { eq: 'threadline:ticket' } } })
+    expect(calls[1]?.variables?.filter).toMatchObject({ labels: { name: { eq: 'threadmap:ticket' } } })
   })
 
   it('specStatus: completed ⇒ approved, canceled-only ⇒ none', async () => {
@@ -139,7 +139,7 @@ describe('LinearAdapter writes', () => {
       labelIds: ['label-1'],
     })
     const labelCreate = calls.find((c) => c.query.includes('issueLabelCreate'))
-    expect(labelCreate?.variables?.input).toEqual({ name: 'threadline:ticket' })
+    expect(labelCreate?.variables?.input).toEqual({ name: 'threadmap:ticket' })
   })
 })
 

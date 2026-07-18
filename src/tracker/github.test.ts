@@ -48,7 +48,7 @@ describe('GitHubAdapter reads', () => {
       'issues/1/sub_issues': [
         subIssue({ number: 2, labels: [{ name: 'wayfinder:grilling' }] }),
         subIssue({ number: 3, state: 'closed', labels: [{ name: 'wayfinder:task' }] }),
-        subIssue({ number: 4, labels: [{ name: 'threadline:ticket' }] }),
+        subIssue({ number: 4, labels: [{ name: 'threadmap:ticket' }] }),
       ],
     })
     const adapter = new GitHubAdapter({ targets: TARGETS, run })
@@ -61,8 +61,8 @@ describe('GitHubAdapter reads', () => {
   it('children returns closed tickets too, with state', async () => {
     const { run } = fakeGh({
       'issues/1/sub_issues': [
-        subIssue({ number: 4, labels: [{ name: 'threadline:ticket' }] }),
-        subIssue({ number: 5, state: 'closed', labels: [{ name: 'threadline:ticket' }] }),
+        subIssue({ number: 4, labels: [{ name: 'threadmap:ticket' }] }),
+        subIssue({ number: 5, state: 'closed', labels: [{ name: 'threadmap:ticket' }] }),
       ],
     })
     const adapter = new GitHubAdapter({ targets: TARGETS, run })
@@ -89,7 +89,7 @@ describe('GitHubAdapter reads', () => {
   it('specStatus: none / open / closed ⇒ approved', async () => {
     const spec = (state: string) =>
       fakeGh({
-        'issues/1/sub_issues': [subIssue({ number: 7, state, labels: [{ name: 'threadline:spec' }] })],
+        'issues/1/sub_issues': [subIssue({ number: 7, state, labels: [{ name: 'threadmap:spec' }] })],
       }).run
     const none = new GitHubAdapter({
       targets: TARGETS,
@@ -100,13 +100,13 @@ describe('GitHubAdapter reads', () => {
     expect(await new GitHubAdapter({ targets: TARGETS, run: spec('closed') }).specStatus(MAP)).toBe('approved')
   })
 
-  it('mapStamps strips the threadline: prefix and keeps wayfinder:* literal', async () => {
+  it('mapStamps strips the threadmap: prefix and keeps wayfinder:* literal', async () => {
     const { run } = fakeGh({
       'repos/acme/web/issues/1': {
         labels: [
           { name: 'wayfinder:map' },
-          { name: 'threadline:ticketed' },
-          { name: 'threadline:override:implement' },
+          { name: 'threadmap:ticketed' },
+          { name: 'threadmap:override:implement' },
           { name: 'bug' },
         ],
       },
@@ -133,7 +133,7 @@ describe('GitHubAdapter writes', () => {
     })
     expect(ref.id).toBe('acme/api#9')
     const joined = calls.map((c) => c.join(' '))
-    expect(joined.some((c) => c.includes('labels[]=threadline:ticket'))).toBe(true)
+    expect(joined.some((c) => c.includes('labels[]=threadmap:ticket'))).toBe(true)
     expect(joined.some((c) => c.includes('repos/acme/web/issues/1/sub_issues') && c.includes('sub_issue_id=555'))).toBe(true)
   })
 
@@ -159,7 +159,7 @@ describe('GitHubAdapter writes', () => {
   })
 
   it('unstamp swallows 404 (already absent)', async () => {
-    const { run } = fakeGh({ 'labels/threadline%3Aticketed': new Error('gh: HTTP 404 (Not Found)') })
+    const { run } = fakeGh({ 'labels/threadmap%3Aticketed': new Error('gh: HTTP 404 (Not Found)') })
     const adapter = new GitHubAdapter({ targets: TARGETS, run })
     await expect(adapter.unstamp(mintGitHubRef('acme/web', 2), 'ticketed')).resolves.toBeUndefined()
   })

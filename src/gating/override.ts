@@ -1,4 +1,4 @@
-// Override record write path (#6): `threadline:override:<stage>` label on the
+// Override record write path (#6): `threadmap:override:<stage>` label on the
 // map issue + a structured audit comment. Derivation treats the labelled gate
 // as passed; revoking removes the label (the audit trail stays in comments).
 

@@ -10,8 +10,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { defaultExec, type Exec } from './exec.js'
 
-export const TEMPLATE_DOCS_COMMIT_MESSAGE = 'docs: threadline setup — stamp doc templates'
-export const AGENT_DOCS_COMMIT_MESSAGE = 'docs: threadline setup — agent docs'
+export const TEMPLATE_DOCS_COMMIT_MESSAGE = 'docs: threadmap setup — stamp doc templates'
+export const AGENT_DOCS_COMMIT_MESSAGE = 'docs: threadmap setup — agent docs'
 export const DOCS_FALLBACK_BRANCH = 'tm/setup/agent-docs'
 
 /** All docs readiness checks; the first two are template-stamped, the rest agent-seeded. */
@@ -83,7 +83,7 @@ export async function applyDocs(
     await exec('git', ['push', '-u', 'origin', DOCS_FALLBACK_BRANCH], repoDir)
     const out = await exec(
       'gh',
-      ['pr', 'create', '--title', TEMPLATE_DOCS_COMMIT_MESSAGE, '--body', 'Automated threadline setup docs.', '--head', DOCS_FALLBACK_BRANCH],
+      ['pr', 'create', '--title', TEMPLATE_DOCS_COMMIT_MESSAGE, '--body', 'Automated threadmap setup docs.', '--head', DOCS_FALLBACK_BRANCH],
       repoDir,
     )
     return { mode: 'pr', prUrl: out.trim().split('\n').pop() ?? '' }
@@ -96,7 +96,7 @@ export function docAgentPrompt(): string {
     'Run /setup-matt-pocock-skills for this repository.',
     'Seed CONTEXT.md at the repo root, docs/agents/glossary.md, and docs/agents/coding-standards.md',
     'from what the codebase actually contains. Do not overwrite docs/agents/issue-tracker.md',
-    'or docs/adr/template.md — threadline stamps those from templates.',
+    'or docs/adr/template.md — threadmap stamps those from templates.',
     `Commit the new docs with the message "${AGENT_DOCS_COMMIT_MESSAGE}" and push to origin.`,
     'If the push is rejected (branch protection), move the commit onto a branch and open a PR instead.',
   ].join(' ')
@@ -130,7 +130,7 @@ Used by \`/wayfinder\`. The **map** is a single issue with **child** issues as t
 
 const ISSUE_TRACKER_LINEAR = `# Issue tracker: Linear
 
-Issues and PRDs for this repo live in Linear. Use the **threadline-tracker** MCP tools for all
+Issues and PRDs for this repo live in Linear. Use the **threadmap-tracker** MCP tools for all
 operations — issue identity is the Linear UUID (\`ENG-123\` identifiers are display-only).
 
 ## Conventions

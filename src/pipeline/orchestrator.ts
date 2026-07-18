@@ -205,7 +205,7 @@ export class PipelineOrchestrator {
       const base = await defaultBranch(repoDir, this.exec)
       const landWt = join(
         this.deps.workspace.root,
-        '.threadline',
+        '.threadmap',
         'worktrees',
         entry.repoName,
         `land-${refSlug(effort)}`,
@@ -303,7 +303,7 @@ export class PipelineOrchestrator {
       const removed: string[] = []
       const kept: string[] = []
       const landWt = join(
-        this.deps.workspace.root, '.threadline', 'worktrees', entry.repoName, `land-${refSlug(effort)}`,
+        this.deps.workspace.root, '.threadmap', 'worktrees', entry.repoName, `land-${refSlug(effort)}`,
       )
       const paths = [...entry.tickets.map((t) => worktreePath(this.deps.workspace.root, entry.repoName, t)), landWt]
       const registered = await listWorktrees(repoDir, this.exec)

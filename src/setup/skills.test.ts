@@ -16,7 +16,7 @@ async function makePaths(): Promise<SkillsPaths> {
   return {
     canonicalDir: join(dir, 'agents', 'skills'),
     agentDirs: { 'claude-code': join(dir, 'claude', 'skills') },
-    markerPath: join(dir, 'threadline', 'skills.json'),
+    markerPath: join(dir, 'threadmap', 'skills.json'),
   }
 }
 

@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/geemeows/threadline.git"
+    "url": "git+https://github.com/geemeows/threadmap.git"
   },
   "bin": {
     "threadmap": "./dist/cli.js"

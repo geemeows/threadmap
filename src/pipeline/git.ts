@@ -12,9 +12,9 @@ import { refSlug } from '../gating/branches.js'
 
 export { defaultExec, type Exec } from '../setup/exec.js'
 
-/** `<workspace>/.threadline/worktrees/<repo>/<ticket-ref-slug>/` (#11). */
+/** `<workspace>/.threadmap/worktrees/<repo>/<ticket-ref-slug>/` (#11). */
 export function worktreePath(workspaceRoot: string, repoName: string, ticket: TicketRef): string {
-  return join(workspaceRoot, '.threadline', 'worktrees', repoName, refSlug(ticket))
+  return join(workspaceRoot, '.threadmap', 'worktrees', repoName, refSlug(ticket))
 }
 
 /** The remote default branch (`origin/HEAD` symref); falls back to `main`. */
