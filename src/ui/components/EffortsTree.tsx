@@ -2,8 +2,7 @@
 // tree with per-effort sessions, ad-hoc sessions, and the workspace-wide
 // Needs-you section. The search box opens the ⌘K palette.
 
-import { ChevronRight, Plus, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { ChevronRight, Search } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
@@ -21,7 +20,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarRail,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import { adhocSessions, effortSessions, needsYou, sessionLabel } from '../lib/derive.js'
@@ -35,25 +33,9 @@ export function EffortsTree() {
   const adhoc = adhocSessions(state)
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="none" className="border-r bg-[color-mix(in_srgb,var(--panel)_60%,var(--bg))]">
       <SidebarHeader>
-        <div className="flex items-center gap-1.5 px-2 pt-1">
-          <span aria-hidden className="text-primary">
-            ✦
-          </span>
-          <span className="text-sm font-semibold">threadmap</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="new session"
-            className="ml-auto"
-            onClick={() => store.setNewSessionOpen(true)}
-          >
-            <Plus />
-            <span className="sr-only">New session</span>
-          </Button>
-        </div>
-        <InputGroup className="cursor-pointer bg-background" onClick={() => store.setPaletteOpen(true)}>
+        <InputGroup className="cursor-pointer bg-popover" onClick={() => store.setPaletteOpen(true)}>
           <InputGroupAddon>
             <Search />
           </InputGroupAddon>
@@ -162,7 +144,6 @@ export function EffortsTree() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarRail />
     </Sidebar>
   )
 }

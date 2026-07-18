@@ -247,6 +247,49 @@ button {
   animation: enter-soft var(--duration-base) var(--ease-soft);
 }
 
+/* ---------- tl-* status vocabulary (from the Threadline Workspace design, #78)
+   The design's shared indicator motion, extracted so every surface's status
+   dots/spinners/rings read identically. `tl-pulse` = a live/attention dot
+   (calmer than Tailwind's animate-pulse: floors at 0.4, not 0.5); `tl-spin` =
+   the running ring spinner; `tl-ring` = a one-shot mint focus ripple. Duration
+   is overridable per-call via inline `animation-duration` where the design
+   varies it (inbox 1.1s vs stage pill 1.6s). All three are neutralized by the
+   prefers-reduced-motion block above. */
+@keyframes tl-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes tl-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--mint-line);
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@keyframes tl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.tl-pulse {
+  animation: tl-pulse 1.3s ease-in-out infinite;
+}
+.tl-ring {
+  animation: tl-ring 1.8s var(--ease-soft) infinite;
+}
+.tl-spin {
+  animation: tl-spin 0.9s linear infinite;
+}
+
 /* Reduced motion: neutralize every animation/transition across the redesign
    (animate-pulse/spin/in/out, collapsibles, fades). */
 @media (prefers-reduced-motion: reduce) {
