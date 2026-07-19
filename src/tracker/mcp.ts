@@ -21,9 +21,49 @@ const text = (value: unknown) => ({
 export interface TrackerMcpDeps {
   adapter: LinearAdapter
   client: LinearClient
+  /**
+   * The bound session's pipeline stage. When set, create_issue enforces which
+   * artifacts that stage may mint (below), so pipeline ordering holds at the one
+   * write path no matter who writes (mirrors the derived gates, ADR-0002).
+   * Absent → no restriction (the server was launched without stage context).
+   */
+  stage?: string
 }
 
-export function createTrackerMcpServer({ adapter, client }: TrackerMcpDeps): McpServer {
+/**
+ * Reject out-of-stage issue creation. Labels arrive as logical names ('ticket',
+ * 'spec', 'wayfinder:grilling'). Stages absent from the switch impose no rule.
+ * Throws a message the agent can act on; the MCP layer surfaces it as a tool error.
+ */
+export function assertCreatable(stage: string | undefined, labels: string[]): void {
+  const has = (logical: string) => labels.includes(logical)
+  const hasWayfinder = labels.some((l) => l.startsWith('wayfinder:'))
+  switch (stage) {
+    case 'planning':
+      // /wayfinder produces planning decisions only. Implementation tickets and
+      // the spec are born downstream (/to-tickets, /to-spec) after the human
+      // "ticketed" sign-off — never in the map (ADR-0002).
+      if (has('ticket') || has('spec') || !hasWayfinder)
+        throw new Error(
+          `A planning (/wayfinder) session may only create wayfinder:* children on the map — ` +
+            `not implementation tickets (threadmap:ticket) or the spec (threadmap:spec). ` +
+            `Let the effort flow to /to-spec and /to-tickets instead of doing the work in the map.`,
+        )
+      break
+    case 'to-spec':
+      if (has('ticket'))
+        throw new Error(
+          `A /to-spec session creates the spec, not implementation tickets — those come from /to-tickets.`,
+        )
+      break
+    case 'to-tickets':
+      if (has('spec'))
+        throw new Error(`A /to-tickets session creates implementation tickets, not the spec.`)
+      break
+  }
+}
+
+export function createTrackerMcpServer({ adapter, client, stage }: TrackerMcpDeps): McpServer {
   const server = new McpServer({ name: 'threadmap-tracker', version: '0.1.0' })
 
   server.registerTool(
@@ -84,15 +124,17 @@ export function createTrackerMcpServer({ adapter, client }: TrackerMcpDeps): Mcp
         labels: z.array(z.string()).optional(),
       },
     },
-    async ({ parentId, teamId, title, body, labels }) =>
-      text(
+    async ({ parentId, teamId, title, body, labels }) => {
+      assertCreatable(stage, labels ?? [])
+      return text(
         await adapter.createChild(asRef(parentId), {
           title,
           body,
           target: { id: teamId, display: teamId },
           ...(labels ? { labels } : {}),
         }),
-      ),
+      )
+    },
   )
 
   server.registerTool(
