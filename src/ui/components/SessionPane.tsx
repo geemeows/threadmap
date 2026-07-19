@@ -14,6 +14,7 @@
 
 import { ChevronRight, Pause, ShieldCheck, Terminal, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -32,6 +33,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { Markdown } from './Markdown.js'
+import { ToolInput, ToolOutput } from './ToolValue.js'
 import { adhocSessions, effortSessions, sessionLabel, statusOf } from '../lib/derive.js'
 import { store, useStore } from '../lib/store.js'
 import type { SessionView } from '../lib/store.js'
@@ -41,7 +43,6 @@ import {
   permissionModeLabel,
   reduceTranscript,
   summarizeInput,
-  summarizeOutput,
 } from '../lib/transcript.js'
 import type { ChatItem, QuestionItem, QuestionSpec, ToolItem } from '../lib/transcript.js'
 import { MintPill, StatusBadge, StatusDot } from './particles.js'
@@ -294,37 +295,27 @@ function ToolCall({ item }: { item: ToolItem }) {
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-card/50 p-2.5">
-          <ToolBlock label="input" value={item.input} />
-          {item.output !== undefined && <ToolBlock label="output" value={item.output} error={item.error} />}
+          <ToolBlock label="input">
+            <ToolInput name={item.name} value={item.input} />
+          </ToolBlock>
+          {item.output !== undefined && (
+            <ToolBlock label="output">
+              <ToolOutput name={item.name} value={item.output} error={item.error} />
+            </ToolBlock>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>
   )
 }
 
-function ToolBlock({ label, value, error }: { label: string; value: unknown; error?: boolean }) {
+function ToolBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
-      <pre
-        className={cn(
-          'max-h-48 overflow-auto rounded-md bg-background px-2.5 py-2 font-mono text-xs whitespace-pre-wrap text-foreground',
-          error && 'text-destructive',
-        )}
-      >
-        {formatValue(value)}
-      </pre>
+      {children}
     </div>
   )
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return value
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
 }
 
 /** Interactive AskUserQuestion card (#82 follow-up): renders the agent's
@@ -487,9 +478,9 @@ function ApprovalCard({
           </StatusBadge>
         )}
       </div>
-      <pre className="my-2.5 max-h-44 overflow-auto rounded-lg border bg-background px-[11px] py-[9px] font-mono text-xs whitespace-pre-wrap text-foreground">
-        {summarizeInput(item.input) ? formatValue(item.input) : summarizeOutput(item.input)}
-      </pre>
+      <div className="my-2.5">
+        <ToolInput name={item.tool} value={item.input} />
+      </div>
       {!resolved && (
         <div className="flex items-center gap-2">
           <Button
