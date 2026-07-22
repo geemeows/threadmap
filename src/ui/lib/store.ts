@@ -310,6 +310,22 @@ export class Store {
     this.sendWs({ type: 'interrupt', sessionId })
   }
 
+  /** Move an ended session to ad-hoc (#102): detach its effort binding on the
+   *  server and optimistically drop `effort` from the local meta so the row
+   *  regroups into the Ad-hoc list immediately (ad-hoc is defined by the absence
+   *  of `effort`). The registry refuses a running session, but the UI only
+   *  offers this on ended ones. */
+  detachEffort(sessionId: string) {
+    const view = this.state.sessions[sessionId]
+    if (view) {
+      const { effort: _detached, ...meta } = view.meta
+      this.set({
+        sessions: { ...this.state.sessions, [sessionId]: { ...view, meta } },
+      })
+    }
+    this.sendWs({ type: 'detach_effort', sessionId })
+  }
+
   kill(sessionId: string) {
     this.sendWs({ type: 'kill', sessionId })
   }

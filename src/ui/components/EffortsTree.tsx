@@ -5,7 +5,9 @@
 // dev-server footer. Needs-you moved to the top-bar inbox (#78); ad-hoc sessions
 // keep their left-pane home since session switching lives here.
 
-import { ChevronRight, Circle, FolderGit2, Plus } from 'lucide-react'
+import { Menu } from '@base-ui/react/menu'
+import { ChevronRight, Circle, FolderGit2, MoreHorizontal, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
@@ -206,7 +208,7 @@ function EffortRow({ effort, state }: { effort: EffortSummary; state: ReturnType
               <span className="flex h-6 items-center px-2 text-xs text-muted-foreground">No sessions yet.</span>
             )}
             {sessions.map((row) => (
-              <SidebarMenuSubItem key={row.view.meta.id}>
+              <SidebarMenuSubItem key={row.view.meta.id} className="group/session relative">
                 <SidebarMenuSubButton
                   size="sm"
                   isActive={state.selectedSession === row.view.meta.id}
@@ -215,12 +217,50 @@ function EffortRow({ effort, state }: { effort: EffortSummary; state: ReturnType
                   <StatusDot status={row.status} />
                   <span className="truncate">{sessionLabel(row.view)}</span>
                 </SidebarMenuSubButton>
+                <SessionMenu row={row} />
               </SidebarMenuSubItem>
             ))}
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuItem>
     </Collapsible>
+  )
+}
+
+/** Per-session `⋯` menu on an effort's rows. Its one item, "Move to ad-hoc",
+ *  detaches a mis-bound session's effort (#102) and is offered on **ended**
+ *  sessions only — a running session's in-memory meta would overwrite the disk
+ *  edit, so the server refuses it. Revealed on row hover/focus. */
+function SessionMenu({ row }: { row: SessionRowView }) {
+  const { id, status } = row.view.meta
+  if (status !== 'ended') return null
+
+  const moveToAdhoc = () => {
+    store.detachEffort(id)
+    toast.success('Moved to ad-hoc')
+  }
+
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        title="Session actions"
+        className="absolute inset-y-0 right-1 my-auto inline-flex size-5 items-center justify-center rounded-md text-[var(--fg3)] opacity-0 transition-[opacity,color,background-color] hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/session:opacity-100 data-[popup-open]:opacity-100"
+      >
+        <MoreHorizontal className="size-3.5" />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-50">
+          <Menu.Popup className="min-w-40 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md outline-none">
+            <Menu.Item
+              onClick={moveToAdhoc}
+              className="flex cursor-pointer select-none items-center rounded-md px-2 py-1.5 text-[12.5px] outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+            >
+              Move to ad-hoc
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   )
 }
 

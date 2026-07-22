@@ -24,6 +24,7 @@ export type ClientMessage =
     }
   | { type: 'interrupt'; sessionId: string }
   | { type: 'kill'; sessionId: string }
+  | { type: 'detach_effort'; sessionId: string }
 
 export type ServerMessage =
   | { type: 'session'; meta: unknown }
@@ -118,6 +119,12 @@ export function createConnection(
             break
           case 'kill':
             registry.kill(msg.sessionId)
+            break
+          case 'detach_effort':
+            // Move-to-ad-hoc (#102): the registry refuses a running session
+            // (its in-memory meta would overwrite the edit); the error surfaces
+            // to the client, which only offers the action on ended sessions.
+            await registry.detachEffort(msg.sessionId)
             break
           default:
             send({ type: 'error', message: `unknown message type: ${(msg as { type: string }).type}` })

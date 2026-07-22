@@ -52,4 +52,24 @@ describe('TranscriptStore', () => {
     expect(await store.readMeta('old')).toMatchObject({ id: 'old', status: 'ended' })
     expect((await store.list()).map((m) => m.id)).toEqual(['new', 'old'])
   })
+
+  it('detachEffort removes only the effort key, leaving other meta intact', async () => {
+    await store.writeMeta({ ...meta('s1', '2026-07-17T00:00:00Z'), effort: 'o/r#1', stage: 'planning' })
+    await store.append('s1', { type: 'assistant_delta', text: 'kept', raw: 1 })
+
+    await store.detachEffort('s1')
+
+    const detached = await store.readMeta('s1')
+    expect(detached?.effort).toBeUndefined()
+    expect(detached).toMatchObject({ id: 's1', stage: 'planning', prompt: '/grilling go' })
+    // The transcript is untouched.
+    expect(await store.readEvents('s1')).toEqual([{ type: 'assistant_delta', text: 'kept', raw: 1 }])
+  })
+
+  it('detachEffort is a no-op for an unknown or already-ad-hoc session', async () => {
+    await expect(store.detachEffort('nope')).resolves.toBeUndefined()
+    await store.writeMeta(meta('adhoc', '2026-07-17T00:00:00Z')) // no effort
+    await store.detachEffort('adhoc')
+    expect(await store.readMeta('adhoc')).toMatchObject({ id: 'adhoc' })
+  })
 })

@@ -63,6 +63,18 @@ export class TranscriptStore {
     return text === null ? null : (JSON.parse(text) as SessionMeta)
   }
 
+  /** Detach a session's effort binding — the "Move to ad-hoc" back-compat path
+   *  (#102). Clears only `meta.effort` and rewrites the sidecar; the JSONL
+   *  transcript and every other meta field are left untouched. The store is the
+   *  single owner of meta writes. No-op when the session (or its binding) is
+   *  already gone. */
+  async detachEffort(sessionId: string): Promise<void> {
+    const meta = await this.readMeta(sessionId)
+    if (!meta?.effort) return
+    delete meta.effort
+    await this.writeMeta(meta)
+  }
+
   async readEvents(sessionId: string): Promise<TranscriptEvent[]> {
     const text = await readFile(this.eventsPath(sessionId), 'utf8').catch(() => '')
     return text

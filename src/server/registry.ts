@@ -199,6 +199,18 @@ export class SessionRegistry {
     pending.reject(new Error(reason))
   }
 
+  /**
+   * Detach an ended session's effort binding — the "Move to ad-hoc" back-compat
+   * remediation (#102). Ended sessions only: a live session keeps its `effort`
+   * in in-memory meta, and the next lifecycle `writeMeta` would clobber the disk
+   * edit, so a running session is refused rather than silently losing the
+   * detach. The disk write is delegated to the store (the sole meta writer).
+   */
+  async detachEffort(sessionId: string): Promise<void> {
+    if (this.live.has(sessionId)) throw new RegistryError(`session still running: ${sessionId}`)
+    await this.store.detachEffort(sessionId)
+  }
+
   interrupt(sessionId: string): void {
     this.require(sessionId).interrupt()
   }

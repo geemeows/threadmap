@@ -143,6 +143,30 @@ describe('ws connection', () => {
     expect(sent.some((m) => m.type === 'error')).toBe(false)
   })
 
+  it('detach_effort clears an ended session’s effort and refuses a running one (#102)', async () => {
+    const store = new TranscriptStore(dir)
+    await connection.onMessage(
+      JSON.stringify({
+        type: 'start_session',
+        cwd: '/repo',
+        prompt: 'go',
+        effort: 'o/r#1',
+        permissionPolicy: { mode: 'default', intercept: true },
+      }),
+    )
+    const id = sessionId()
+
+    // Running: the registry refuses — surfaced as an error, not a dead socket.
+    await connection.onMessage(JSON.stringify({ type: 'detach_effort', sessionId: id }))
+    expect(sent.at(-1)).toMatchObject({ type: 'error', message: expect.stringContaining('still running') })
+
+    adapter.sessions[0]!.emit({ type: 'session_ended', outcome: 'completed', resumable: false })
+    await eventually(async () => expect((await store.readMeta(id))?.status).toBe('ended'))
+
+    await connection.onMessage(JSON.stringify({ type: 'detach_effort', sessionId: id }))
+    await eventually(async () => expect((await store.readMeta(id))?.effort).toBeUndefined())
+  })
+
   it('close detaches all subscriptions', async () => {
     await connection.onMessage(startMsg)
     connection.close()

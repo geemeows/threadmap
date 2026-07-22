@@ -187,6 +187,20 @@ describe('SessionRegistry', () => {
     expect(() => registry.send('nope', { text: 'x' })).toThrow(RegistryError)
     expect(() => registry.subscribe('nope', () => {})).toThrow(RegistryError)
   })
+
+  it('detachEffort clears an ended session’s effort but refuses a running one (#102)', async () => {
+    const meta = registry.start(startOpts)
+
+    // Running: refused — its in-memory meta would clobber the disk edit.
+    await expect(registry.detachEffort(meta.id)).rejects.toThrow(/still running/)
+
+    adapter.sessions[0]!.emit({ type: 'session_ended', outcome: 'completed', resumable: false })
+    await eventually(async () => expect((await store.readMeta(meta.id))?.status).toBe('ended'))
+
+    // Ended: the binding is cleared on disk, transcript-owning meta untouched.
+    await registry.detachEffort(meta.id)
+    expect((await store.readMeta(meta.id))?.effort).toBeUndefined()
+  })
 })
 
 describe('SessionRegistry question bridge', () => {
