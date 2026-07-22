@@ -6,7 +6,7 @@
 // keep their left-pane home since session switching lives here.
 
 import { Menu } from '@base-ui/react/menu'
-import { ChevronRight, Circle, FolderGit2, MoreHorizontal, Plus } from 'lucide-react'
+import { ChevronRight, Circle, CirclePlus, FolderGit2, MoreHorizontal, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
@@ -185,13 +185,13 @@ function EffortRow({ effort, state }: { effort: EffortSummary; state: ReturnType
 
   return (
     <Collapsible open={active}>
-      <SidebarMenuItem>
+      <SidebarMenuItem className="group/effort relative">
         <CollapsibleTrigger
           render={
             <SidebarMenuButton
               isActive={active}
               onClick={() => store.selectEffort(effort.ref.id)}
-              className="gap-[9px] rounded-lg text-[13px] font-medium data-[active=true]:bg-[var(--surface2)]"
+              className="gap-[9px] rounded-lg text-[13px] font-medium transition-[padding] group-hover/effort:pr-8 group-focus-within/effort:pr-8 data-[active=true]:bg-[var(--surface2)]"
             />
           }
         >
@@ -202,6 +202,20 @@ function EffortRow({ effort, state }: { effort: EffortSummary; state: ReturnType
           <span className="flex-1 truncate">{effort.title}</span>
           <RefBadge className="text-[10.5px]">{effort.ref.display}</RefBadge>
         </CollapsibleTrigger>
+        {/* Per-effort session ⊕ (#108): starts a session bound to THIS row's
+         *  effort — the binding comes from the clicked row, never from
+         *  `state.selectedEffort`. Sibling of the trigger (not nested — no
+         *  button-in-button) and absolutely placed after the ref badge, so
+         *  clicking it never toggles/selects the row. Revealed on hover/focus. */}
+        <button
+          type="button"
+          title="New session on this effort"
+          aria-label={`New session on ${effort.title}`}
+          onClick={() => store.setNewSessionOpen(true, effort.ref.id)}
+          className="absolute inset-y-0 right-1.5 my-auto inline-flex size-5 items-center justify-center rounded-md text-[var(--fg3)] opacity-0 transition-[opacity,color,background-color] hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/effort:opacity-100 group-focus-within/effort:opacity-100"
+        >
+          <CirclePlus className="size-4" />
+        </button>
         <CollapsibleContent>
           <SidebarMenuSub className="mr-0 pr-0">
             {sessions.length === 0 && (
