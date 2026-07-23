@@ -475,10 +475,17 @@ export class Store {
   }
 
   /**
-   * Mint a brand-new effort (#106): POST the idea + home repo, then adopt the
-   * returned effort into the list and select it. Returns an error string on
-   * failure, else null. (The auto-kickoff planning session is #110 — this
-   * action stops at minting the map and surfacing the new effort.)
+   * Mint a brand-new effort and kick off planning (#106 + #110): POST the idea +
+   * home repo, adopt the returned effort into the list and select it, then
+   * auto-start a planning session bound to it. Returns an error string on
+   * failure, else null.
+   *
+   * The session carries **no stage** on the wire — the freshly-minted map has no
+   * artifacts, so the server derives `planning` (ADR-0002 / #97). Its cwd is the
+   * home repo. Its opening prompt is a `/wayfinder` *charting* invocation seeded
+   * with the idea and pointed at the already-minted map, so charting fills that
+   * map in rather than creating a second one — the integration seam #104 §4
+   * flags (see `wayfinderKickoffPrompt`).
    */
   async mintEffort(repo: string, idea: string): Promise<string | null> {
     const res = await mutateJson<EffortSummary>('/api/efforts', 'POST', { repo, idea })
@@ -489,6 +496,12 @@ export class Store {
         ? this.state.efforts
         : [...this.state.efforts, effort]
       this.set({ efforts, selectedEffort: effort.ref.id, selectedStageIdx: null, newEffortOpen: false })
+      this.startSession({
+        cwd: effort.repo.path,
+        prompt: wayfinderKickoffPrompt(effort.ref.id, idea),
+        permissionPolicy: { mode: 'default', intercept: true },
+        effort: effort.ref.id,
+      })
     }
     return null
   }
@@ -511,6 +524,24 @@ export class Store {
   dismissError() {
     this.set({ error: null })
   }
+}
+
+/**
+ * The opening message auto-injected into the New-effort planning session (#110).
+ * A `/wayfinder` *charting* invocation seeded with the idea and pointed at the
+ * already-minted map (`mapRef`). The map is minted before the session, so the
+ * charting run must fill *that* map in — not create a second one (the seam
+ * #104 §4 flags; `/wayfinder`'s "Chart the map" step 3 is pre-satisfied).
+ */
+export function wayfinderKickoffPrompt(mapRef: string, idea: string): string {
+  return [
+    `/wayfinder ${mapRef} .. chart the map`,
+    '',
+    `The wayfinder:map issue for this effort is already minted (empty, provisional title only) as ${mapRef}. Chart INTO that existing map — fill its Destination, Notes, and tickets, and rename it as the destination sharpens. Do not create a second map.`,
+    '',
+    'The idea:',
+    idea.trim(),
+  ].join('\n')
 }
 
 // Guarded — unit tests import this module outside a browser.

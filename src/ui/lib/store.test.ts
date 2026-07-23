@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionMeta } from './types.js'
-import { Store } from './store.js'
+import { Store, wayfinderKickoffPrompt } from './store.js'
 
 function meta(over: Partial<SessionMeta> = {}): SessionMeta {
   return {
@@ -124,5 +124,73 @@ describe('store session start (ADR-0002: client never sets a stage)', () => {
     expect(store.getState().newSessionEffort).toBeNull()
     store.setNewSessionOpen(false)
     expect(store.getState()).toMatchObject({ newSessionOpen: false, newSessionEffort: null })
+  })
+})
+
+describe('store mintEffort (#110: mint the map, then auto-start planning)', () => {
+  function withSocket(store: Store): string[] {
+    const sent: string[] = []
+    ;(store as unknown as {
+      ws: { readyState: number; OPEN: number; send: (d: string) => void }
+    }).ws = { readyState: 1, OPEN: 1, send: (d) => sent.push(d) }
+    return sent
+  }
+
+  const effort = {
+    ref: { id: 'o/r#7', display: 'o/r#7', url: 'https://github.com/o/r/issues/7' },
+    title: 'Rework onboarding',
+    state: 'open' as const,
+    repo: { name: 'r', path: '/ws/r' },
+  }
+
+  it('POSTs the idea then auto-starts a seeded, stage-less planning session bound to the new effort', async () => {
+    const fetch = stubFetch(effort)
+    const store = new Store()
+    const sent = withSocket(store)
+
+    expect(await store.mintEffort('r', 'Rework onboarding\nmore detail')).toBeNull()
+
+    // 1. POST /api/efforts with the idea + home repo.
+    expect(fetch).toHaveBeenCalledWith('/api/efforts', expect.objectContaining({ method: 'POST' }))
+    const opts = (fetch.mock.calls[0] as unknown as [string, { body: string }])[1]
+    const body = JSON.parse(opts.body)
+    expect(body).toEqual({ repo: 'r', idea: 'Rework onboarding\nmore detail' })
+
+    // 2. Effort adopted + selected; modal closed.
+    const state = store.getState()
+    expect(state.efforts.map((e) => e.ref.id)).toContain('o/r#7')
+    expect(state.selectedEffort).toBe('o/r#7')
+    expect(state.newEffortOpen).toBe(false)
+
+    // 3. A planning session started: bound effort, cwd = home repo, NO stage on
+    //    the wire (server derives `planning`), opening prompt a /wayfinder
+    //    charting invocation seeded with the idea and the minted map ref.
+    expect(sent).toHaveLength(1)
+    const msg = JSON.parse(sent[0]!) as Record<string, unknown>
+    expect(msg.type).toBe('start_session')
+    expect(msg.effort).toBe('o/r#7')
+    expect(msg.cwd).toBe('/ws/r')
+    expect('stage' in msg).toBe(false)
+    expect(msg.prompt).toContain('/wayfinder')
+    expect(msg.prompt).toContain('o/r#7')
+    expect(msg.prompt).toContain('Rework onboarding')
+  })
+
+  it('surfaces the server error and starts no session', async () => {
+    stubFetch({ error: 'not a ready repo' }, false)
+    const store = new Store()
+    const sent = withSocket(store)
+    expect(await store.mintEffort('r', 'idea')).toMatch(/not a ready repo/)
+    expect(sent).toEqual([])
+  })
+})
+
+describe('wayfinderKickoffPrompt', () => {
+  it('is a /wayfinder charting invocation that charts into the minted map, not a new one', () => {
+    const prompt = wayfinderKickoffPrompt('o/r#7', '  Rework onboarding  ')
+    expect(prompt.startsWith('/wayfinder')).toBe(true)
+    expect(prompt).toContain('o/r#7')
+    expect(prompt).toContain('Rework onboarding') // idea, trimmed
+    expect(prompt).toMatch(/do not create a second map/i)
   })
 })

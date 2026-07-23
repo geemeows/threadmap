@@ -7,10 +7,11 @@
 // offers ready repos only, with no default; a single ready repo is hidden and
 // auto-bound. Built on the shared OverlayShell particle, matching NewSessionDialog.
 //
-// This stops before the auto-kickoff planning session (#110); submitting mints
-// the map and surfaces the new effort in the list.
+// On submit (#110) the map is minted and a planning session auto-starts, bound
+// to the new effort with an auto-injected `/wayfinder` charting prompt seeded
+// with the idea — so the action is "Start planning", not merely "create".
 
-import { Sparkles } from 'lucide-react'
+import { Compass } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -52,7 +53,7 @@ export function NewEffortDialog() {
       return
     }
     reset()
-    toast.success('Effort created')
+    toast.success('Planning session starting…')
   }
 
   return (
@@ -63,7 +64,7 @@ export function NewEffortDialog() {
         if (!open) reset()
       }}
       title="New effort"
-      description="Mints a wayfinder:map issue in the home repo — the effort you'll plan against."
+      description="Describe the idea — we'll mint the map and open a planning session to chart it."
       width={520}
     >
       <FieldGroup className="gap-3.5 px-[18px] py-4">
@@ -118,8 +119,8 @@ export function NewEffortDialog() {
             disabled={!ready || minting}
             title={disconnected ? 'Disconnected — reconnecting' : undefined}
           >
-            <Sparkles />
-            {minting ? 'Creating…' : 'Create effort'}
+            <Compass />
+            {minting ? 'Starting…' : 'Start planning'}
           </Button>
         </div>
       </FieldGroup>
